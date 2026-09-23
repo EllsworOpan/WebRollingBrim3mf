@@ -164,5 +164,9 @@
 .viewer-legend .upper-outline::before { border-top-style:dashed; }
 .compact-download { margin:0; padding:10px 24px; background:#18262e; font-size:11px; color:#b8cbd3; }
 .compact-download a { color:var(--accent); text-underline-offset:3px; }
+.circle-sweep-note { display:flex; flex-direction:row; flex-wrap:wrap; align-items:center; gap:7px; max-width:calc(100% - 40px); pointer-events:none; color:#96d7cc; background:#112421e8; border:1px solid #365f57; border-radius:4px; padding:6px 9px; }
+.circle-sweep-note strong { color:#bbf3e8; }
+.circle-sweep-note>span { color:#91a9a4; margin-left:4px; }
+.circle-sweep-swatch { background:#54d7c038; border:1px solid #75e6d1; }
 @media(max-width:1050px) { .compact-layer-bar:has(.outline-control) { gap:8px 14px; padding:10px 18px; } }
 @media(max-width:600px) { .compact-metrics { font-size:10px; text-align:right; } .compact-layer-bar .outline-control { margin-left:0; flex:1; } .compact-layer-bar .layer-title { font-size:10px; } .outline-explanation { padding:12px 18px; } }

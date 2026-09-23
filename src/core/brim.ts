@@ -19,6 +19,7 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
   const regions = classifyRegions(model, settings.diameter, -settings.gap);
   const allowed = unionPolygons([...regions.outside, ...(settings.holes ? regions.holes : []), ...(settings.pockets ? regions.pockets : [])]);
   const warnings: string[] = [];
+  const sweepAreas: Rings = [];
   let occupied: Rings = [];
   const objects = project.objects.map((object, index) => {
     const shape = footprints[index], notes: string[] = [];
@@ -31,12 +32,19 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
     if (enabled.includes(object.id) && shape.length) {
       area = intersectPolygons(subtractPolygons(offsetPolygons(shape, settings.width + settings.gap), offsetPolygons(shape, settings.gap)), allowed);
       const otherModels = unionPolygons(footprints.filter((_, i) => i !== index).flat());
-      area = subtractPolygons(area, offsetPolygons(otherModels, Math.max(settings.gap, 0)));
+      const clearance = offsetPolygons(otherModels, Math.max(settings.gap, 0));
+      area = subtractPolygons(area, clearance);
+      // Preview the full diameter-wide sweep using the same reachability and
+      // clearance rules as the brim. It has no mesh and is never exported.
+      let sweep = intersectPolygons(subtractPolygons(offsetPolygons(shape, settings.diameter + settings.gap), offsetPolygons(shape, settings.gap)), allowed);
+      sweep = subtractPolygons(sweep, clearance);
       if (project.bed.length) {
         const clipped = intersectPolygons(area, [project.bed]);
         if (totalArea(area) - totalArea(clipped) > 0.05) notes.push('Brim clipped to the project’s print bed.');
         area = clipped;
+        sweep = intersectPolygons(sweep, [project.bed]);
       }
+      sweepAreas.push(...sweep);
       const before = totalArea(area);
       // Stable ownership: earlier objects retain shared brim area. A tiny clearance
       // keeps adjacent independent parts separate after slicer polygon rounding.
@@ -48,5 +56,5 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
     return { id: object.id, footprint: shape, bottom, top, area, mesh: extrude(area, settings.height), areaMm2: totalArea(area), changeArea, warnings: notes };
   });
   if (!objects.some(o => o.area.length)) warnings.push('No printable brim area is selected.');
-  return { objects, bounds: boundsOf(unionPolygons([...model, ...occupied])), regions: regions.counts, settings: { ...settings }, warnings, computeMs: performance.now() - start };
+  return { objects, circleSweep: unionPolygons(sweepAreas), bounds: boundsOf(unionPolygons([...model, ...occupied])), regions: regions.counts, settings: { ...settings }, warnings, computeMs: performance.now() - start };
 }
