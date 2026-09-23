@@ -28,6 +28,30 @@ describe('mesh slicing and solids', () => {
     expect([...edges.values()].every(n=>n===2)).toBe(true); expect(volume).toBeCloseTo(60,5);
     expect(totalArea(sliceMesh(mesh,0.1))).toBeCloseTo(300,3); expect(has(sliceMesh(mesh,0.1),10,10)).toBe(false);
   });
+  it('compares a sloping shell with a tiny base offset without changing the brim reference', () => {
+    const mesh=box(40,0,20,20,1);
+    for(let i=0;i<mesh.vertices.length;i+=3) {
+      if(mesh.vertices[i+2]===1) mesh.vertices[i]+=mesh.vertices[i]===40 ? -1 : 1;
+      mesh.vertices[i+2]+=0.0018;
+    }
+    // Another shell is on Z=0, as in a multipart STL. The old 0.001 mm
+    // comparison missed the entire second shell, despite its flat base.
+    expect(sliceMesh(mesh,0.001)).toEqual([]);
+    const result=generateBrims(project([box(0,0),mesh]),DEFAULT_BRIM).objects[1];
+    expect(result.bottom.length).toBeGreaterThan(0);
+    expect(totalArea(result.top)).toBeGreaterThan(totalArea(result.footprint));
+    expect(totalArea(result.footprint)).toBeGreaterThan(totalArea(result.bottom));
+    expect(result.footprint).toEqual(sliceMesh(mesh,0.1));
+    expect(result.mesh.triangles.length).toBeGreaterThan(0);
+  });
+  it('does not invent a lower outline for a shell that starts higher within the layer', () => {
+    const mesh=box(40,0);
+    for(let i=2;i<mesh.vertices.length;i+=3) mesh.vertices[i]+=0.06;
+    const result=generateBrims(project([box(0,0),mesh]),DEFAULT_BRIM).objects[1];
+    expect(result.bottom).toEqual([]);
+    expect(result.top.length).toBeGreaterThan(0);
+    expect(result.footprint).toEqual(sliceMesh(mesh,0.1));
+  });
   it('rejects broken cross-sections instead of silently closing them', () => {
     const mesh=box(); mesh.triangles.splice(-6); expect(()=>sliceMesh(mesh,0.1)).toThrow(/open|oriented/);
   });
