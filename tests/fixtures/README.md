@@ -1,4 +1,10 @@
-# Painted PrusaSlicer fixtures
+# Native slicer fixtures
+
+`painted-plates-bambu.3mf` and `painted-plates-orca.3mf` are original box geometry from `tests/native-fixtures.ts`, saved by Bambu Studio 2.8.2.61 and OrcaSlicer 2.4.2 respectively. They contain four plates, repeated instances, a nonprintable instance, negative volumes, triangle painting, filament assignments and object/part settings. Their generic validation profiles are for automated testing, not physical printing. They contain no user models or credentials.
+
+Run `tests/bambu-slicer.integration.test.ts` with `BAMBU_STUDIO` and `ORCA_SLICER` pointing to the appropriate executables (or portable copies in `.local/bambu` and `.local/orca`). Copy `.local/bambu-integration-fixture.3mf` and `.local/orca-integration-fixture.3mf` here to regenerate the fixtures. Tests without installed slicers exercise both files, including all four plate selections, mesh/painting preservation and single-plate round trips. Integration tests additionally reopen exports in both slicers and inspect G-code to verify that brim extrusion remains a single layer of walls.
+
+## PrusaSlicer
 
 These tiny test models are original box geometry created by `tests/painted-fixtures.ts`, covered by this repository's MIT license. They contain no user models or printer credentials.
 

@@ -55,6 +55,6 @@ describe('3MF import/export',()=>{
   it('rejects invalid indices, cyclic references, and unsupported project formats',()=>{
     expect(()=>importProject('bad.3mf',archive('<object id="1"><components><component objectid="1"/></components></object>','<item objectid="1"/>'))).toThrow(/circular/);
     expect(()=>importProject('bad.3mf',archive(`<object id="1">${meshXml(box()).replace('v1="0"','v1="99999"')}</object>`,'<item objectid="1"/>'))).toThrow(/indices/);
-    expect(()=>importProject('orca.3mf',archive(`<object id="1">${meshXml(box())}</object>`,'<item objectid="1"/>','<config/>',{'Metadata/model_settings.config':strToU8('<config/>')}))).toThrow(/Bambu\/Orca/);
+    expect(()=>importProject('orca.3mf',archive(`<object id="1">${meshXml(box())}</object>`,'<item objectid="1"/>','<config/>',{'Metadata/project_settings.config':strToU8('{}')}))).toThrow(/Bambu\/Orca/);
   });
 });

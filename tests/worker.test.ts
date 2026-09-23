@@ -6,6 +6,7 @@ import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM, type WorkerRequest, type WorkerResponse } from '../src/core/types';
 import { box, stl } from './fixtures';
 import { MODEL, modelSnapshot, paintedSeed } from './painted-fixtures';
+import { nativeFixture } from './native-fixtures';
 
 describe('model worker lifecycle', () => {
   let scope: { postMessage: ReturnType<typeof vi.fn>; onmessage?: (message: {data: WorkerRequest}) => void };
@@ -66,6 +67,33 @@ describe('model worker lifecycle', () => {
     expect(send({type:'export',id:3,settings:DEFAULT_BRIM,enabled:['object-0']})).toMatchObject({type:'error',message:expect.stringContaining('Load a model')});
     expect(send({type:'load',id:4,name:'new.stl',bytes:stl(box(70,20))})).toMatchObject({type:'loaded',project:{name:'new.stl'}});
     expect(send({type:'generate',id:5,settings:DEFAULT_BRIM,enabled:['object-0']})).toMatchObject({type:'generated'});
+  });
+
+  it('switches plates from the immutable upload and exports only the active plate', () => {
+    const bytes = nativeFixture();
+    expect(send({type:'load',id:1,name:'multi.3mf',bytes})).toMatchObject({type:'loaded',project:{activePlateId:'1',format:'orca'}});
+    expect(send({type:'plate',id:2,plateId:'2'})).toMatchObject({type:'loaded',project:{activePlateId:'2',objects:expect.any(Array)}});
+    const first = send({type:'export',id:3,settings:DEFAULT_BRIM,enabled:['object-1']});
+    if (first.type !== 'exported') throw new Error('Expected export');
+    expect(first.filename).toBe('multi-Plate 2-rolling-brim.3mf');
+    expect(importProject('out.3mf',first.bytes.slice().buffer).objects.map(o => o.parts.length)).toEqual([3,2]);
+    send({type:'plate',id:4,plateId:'3'});
+    expect(send({type:'generate',id:5,settings:{...DEFAULT_BRIM,width:8},enabled:['object-4']})).toMatchObject({type:'generated'});
+    expect(send({type:'plate',id:6,plateId:'missing'})).toMatchObject({type:'error'});
+    send({type:'plate',id:7,plateId:'2'});
+    const restored = send({type:'export',id:8,settings:DEFAULT_BRIM,enabled:['object-1']});
+    if (restored.type !== 'exported') throw new Error('Expected export');
+    expect(unzipSync(restored.bytes)).toEqual(unzipSync(first.bytes));
+  });
+
+  it('lets a plate switch supersede an optimization without returning the old result', async () => {
+    vi.useFakeTimers();
+    send({type:'load',id:1,name:'multi.3mf',bytes:nativeFixture()});
+    send({type:'maximize',id:2,settings:DEFAULT_BRIM,enabled:['object-0']});
+    send({type:'plate',id:3,plateId:'2'});
+    await vi.runAllTimersAsync();
+    expect(scope.postMessage.mock.calls.some(([r]) => r.type === 'maximized')).toBe(false);
+    expect(send({type:'generate',id:4,settings:DEFAULT_BRIM,enabled:['object-1']})).toMatchObject({type:'generated',result:{objects:expect.arrayContaining([expect.objectContaining({id:'object-1'})])}});
   });
 
   it('switches painted instances across previews and exports without leaking brims or changing original parts', () => {

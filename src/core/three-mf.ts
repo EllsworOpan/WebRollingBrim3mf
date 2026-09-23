@@ -1,66 +1,16 @@
-import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
+import { NS, xml, serialize, children, child, meta, num, matrix, readMesh, safePath, checkIds, type Doc, type El } from './three-mf-xml';
+import { importNativeProject, exportNativeProject, selectPlate } from './bambu-3mf';
+export { selectPlate };
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { Matrix4 } from 'three';
 import { compactMesh, loadStl, transformMesh } from './mesh';
 import { importObj } from './obj';
 import { signedArea } from './geometry';
 import { MIN_LAYER_HEIGHT, MAX_LAYER_HEIGHT } from './first-layer';
-import type { BrimResult, Mesh, ModelObject, ModelPart, Project } from './types';
+import type { BrimResult, Mesh, ModelObject, ModelPart, Project, SlicerFormat } from './types';
 
-const NS = 'http://schemas.microsoft.com/3dmanufacturing/core/2015/02';
 const CONFIG = 'Metadata/Slic3r_PE_model.config';
 const BRIM_SOURCE_FILE = 'rolling-brim.generated.stl';
-type Doc = ReturnType<DOMParser['parseFromString']>;
-type El = Element;
-const xml = (value: string): Doc => {
-  if (/<!DOCTYPE|<!ENTITY/i.test(value)) throw new Error('XML entity declarations are not supported.');
-  let problem = '';
-  const doc = new DOMParser({ errorHandler: { warning: m => { problem = m; }, error: m => { problem = m; }, fatalError: m => { problem = m; } } }).parseFromString(value, 'application/xml');
-  if (problem || !doc.documentElement) throw new Error('Invalid XML in the 3MF archive.');
-  return doc;
-};
-const serialize = (doc: Doc) => strToU8(new XMLSerializer().serializeToString(doc));
-const children = (parent: El, name: string): El[] => Array.from(parent.childNodes).filter(n => n.nodeType === 1 && (n as El).localName === name) as El[];
-const child = (parent: El, name: string): El => {
-  const element = children(parent, name)[0];
-  if (!element) throw new Error(`Missing ${name} in 3MF model.`);
-  return element;
-};
-const meta = (parent: El | undefined, key: string) => parent && children(parent, 'metadata').find(m => m.getAttribute('key') === key)?.getAttribute('value') || '';
-const num = (s: string | null) => {
-  if (s === null || s.trim() === '' || !Number.isFinite(Number(s))) throw new Error('Invalid numeric value in the 3MF model.');
-  return Number(s);
-};
-function matrix(value: string | null, scale = 1): Matrix4 {
-  const t = value?.trim() ? value.trim().split(/\s+/).map(num) : [1,0,0,0,1,0,0,0,1,0,0,0];
-  if (t.length !== 12) throw new Error('Invalid 3MF placement transform.');
-  const result = new Matrix4().set(t[0],t[3],t[6],t[9], t[1],t[4],t[7],t[10], t[2],t[5],t[8],t[11], 0,0,0,1);
-  result.premultiply(new Matrix4().makeScale(scale,scale,scale));
-  const determinant = result.determinant();
-  if (!Number.isFinite(determinant) || Math.abs(determinant) < 1e-12) throw new Error('A model has an invalid or singular placement transform.');
-  return result;
-}
-function readMesh(element: El): Mesh {
-  const vertices = children(child(element, 'vertices'), 'vertex').flatMap(v => ['x','y','z'].map(k => num(v.getAttribute(k))));
-  const triangles = children(child(element, 'triangles'), 'triangle').flatMap(t => ['v1','v2','v3'].map(k => num(t.getAttribute(k))));
-  if (vertices.some(n => Math.abs(n) > 1e6) || triangles.some(n => !Number.isInteger(n) || n < 0 || n >= vertices.length / 3)) throw new Error('The 3MF mesh has invalid coordinates or triangle indices.');
-  if (!triangles.length) throw new Error('A model mesh contains no triangles.');
-  return { vertices, triangles };
-}
-function safePath(path: string): string {
-  const decoded = decodeURIComponent(path).replaceAll('\\', '/').replace(/^\/+/, '');
-  if (decoded.split('/').includes('..') || decoded.includes(':')) throw new Error('Unsupported archive resource path.');
-  return decoded;
-}
-function checkIds(elements: El[], label: string) {
-  const ids = new Set<number>();
-  for (const element of elements) {
-    const id = num(element.getAttribute('id'));
-    if (!Number.isSafeInteger(id) || id < 1) throw new Error(`Invalid ${label} ID in the 3MF.`);
-    if (ids.has(id)) throw new Error(`Duplicate ${label} ID in the 3MF.`);
-    ids.add(id);
-  }
-}
 function checkVolumes(volumes: El[], triangleCount: number) {
   const ranges = volumes.map(v => ({ first: num(v.getAttribute('firstid')), last: num(v.getAttribute('lastid')) })).sort((a,b) => a.first - b.first);
   let next = 0;
@@ -96,12 +46,12 @@ export function importProject(name: string, bytes: ArrayBuffer): Project {
     if (expanded > 500_000_000 || entries > 10000) throw new Error('The expanded 3MF exceeds the browser processing limit.');
     safePath(file.name); return true;
   } });
-  if (files['Metadata/model_settings.config'] || files['Metadata/project_settings.config']) throw new Error('This Bambu/Orca project uses a different settings format. Open it in PrusaSlicer and save a PrusaSlicer 3MF project first.');
   const rels = files['_rels/.rels'] && xml(strFromU8(files['_rels/.rels']));
   const relation = rels && children(rels.documentElement, 'Relationship').find(r => /\/3dmodel$/.test(r.getAttribute('Type') || ''));
   if (!relation || relation.getAttribute('TargetMode') === 'External') throw new Error('The 3MF has no internal model relationship.');
   const modelPath = safePath(relation.getAttribute('Target') || '');
   if (!files[modelPath]) throw new Error('The 3MF model resource is missing.');
+  if (files['Metadata/model_settings.config'] || files['Metadata/project_settings.config']) return importNativeProject(name, files, modelPath);
   const doc = xml(strFromU8(files[modelPath])), root = doc.documentElement;
   if (root.localName !== 'model' || root.namespaceURI !== NS) throw new Error('The 3MF resource is not a supported core model.');
   if ((root.getAttribute('requiredextensions') || '').trim()) throw new Error('This 3MF requires extensions not supported by this workbench. Save a standard PrusaSlicer 3MF first.');
@@ -169,7 +119,7 @@ export function importProject(name: string, bytes: ArrayBuffer): Project {
   if (Number(setting('brim_width')) > 0) warnings.push('Native slicer brim is enabled in this project and may add another brim. Turn it off in PrusaSlicer if unwanted.');
   const suggestedHeight = height && Number.isFinite(Number(height)) && Number(height) >= MIN_LAYER_HEIGHT && Number(height) <= MAX_LAYER_HEIGHT ? Number(height) : undefined;
   if (height && !height.endsWith('%') && suggestedHeight === undefined) warnings.push(`The stored first-layer height is outside the supported ${MIN_LAYER_HEIGHT}–${MAX_LAYER_HEIGHT} mm range. Choose the height manually.`);
-  return { name, objects, bed, warnings, source: { files, modelPath }, suggestedHeight };
+  return { name, objects, bed, warnings, source: { files, modelPath }, format: files[CONFIG] ? 'prusa' : 'generic', suggestedHeight };
 }
 
 function addMeta(doc: Doc, parent: El, type: string, key: string, value: string) {
@@ -196,7 +146,9 @@ function partConfig(doc: Doc, parent: El, first: number, count: number, name: st
   const v = doc.createElement('volume'); v.setAttribute('firstid', String(first)); v.setAttribute('lastid', String(first + count - 1));
   addMeta(doc, v, 'volume', 'name', name); addMeta(doc, v, 'volume', 'volume_type', kind); parent.appendChild(v); return v;
 }
-export function exportProject(project: Project, result: BrimResult): Uint8Array {
+export function exportProject(project: Project, result: BrimResult, format: SlicerFormat = project.format === 'bambu' || project.format === 'orca' ? project.format : 'prusa'): Uint8Array {
+  if (project.format && project.format !== 'generic' && project.format !== format) throw new Error('Native projects must be exported to their original slicer.');
+  if (format !== 'prusa') return exportNativeProject(project, result, format);
   if (!result.objects.some(o => o.mesh.triangles.length)) throw new Error('Generate at least one brim before exporting.');
   const files: Record<string, Uint8Array> = { ...project.source?.files };
   const modelPath = project.source?.modelPath || '3D/3dmodel.model';
