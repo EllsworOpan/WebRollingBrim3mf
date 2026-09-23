@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Matrix4 } from 'three';
 import { generateBrims } from '../src/core/brim';
-import { containsPoint, intersectPolygons, polygonsOf, totalArea } from '../src/core/geometry';
+import { containsPoint, intersectPolygons, polygonsOf, subtractPolygons, totalArea } from '../src/core/geometry';
 import { extrude, sliceMesh, transformMesh } from '../src/core/mesh';
 import { exportProject, importProject } from '../src/core/three-mf';
 import { DEFAULT_BRIM, type Mesh, type Rings } from '../src/core/types';
@@ -10,6 +10,8 @@ import { archive, box, meshXml, project, rectangle, stl } from './fixtures';
 const settings = {...DEFAULT_BRIM,diameter:30,width:5};
 const has = (rings: Rings,x: number,y: number) => polygonsOf(rings).some(p => containsPoint({x,y},p));
 const resource = (id: number,mesh: Mesh) => `<object id="${id}">${meshXml(mesh)}</object>`;
+// 3MF part extraction can renumber vertices; compare the ordered face corners.
+const corners = (mesh: Mesh) => mesh.triangles.map(n=>mesh.vertices.slice(n*3,n*3+3));
 
 describe('each imported object is an independent brim job', () => {
   it('treats a multipart STL and a 3MF assembly as one object, but separate 3MF build items as separate jobs', () => {
@@ -66,8 +68,81 @@ describe('each imported object is an independent brim job', () => {
     const brims=restored.objects.map(o=>sliceMesh(o.parts.find(p=>p.name==='Rolling brim')!.mesh,0.1));
     expect(totalArea(intersectPolygons(brims[0],brims[1]))).toBeCloseTo(overlap,3);
     expect(totalArea(intersectPolygons(brims[0],sliceMesh(restored.objects[1].parts[0].mesh,0.1)))).toBeCloseTo(collision,3);
-    const corners = (mesh: Mesh) => mesh.triangles.map(n=>mesh.vertices.slice(n*3,n*3+3));
     restored.objects.forEach((o,i)=>expect(corners(o.parts[0].mesh)).toEqual(corners(p.objects[i].parts[0].mesh)));
+  });
+
+  it.each([false,true].flatMap(holes=>[false,true].map(pockets=>({holes,pockets}))))('classifies holes and pockets within their own object (holes=$holes, pockets=$pockets)', toggles => {
+    const ring = subtractPolygons([rectangle(20,20,60,60)],[rectangle(35,35,30,30)]);
+    const pocket = subtractPolygons([rectangle(120,20,60,60)],[rectangle(135,35,30,30),rectangle(148,64,4,17)]);
+    // The second object occupies the hole; the third closes the pocket's entrance.
+    // Neither is part of the first object's clearance calculation.
+    const p = project([extrude([...ring,...pocket],2),box(40,40),box(147,76,6,8)]);
+    const opts = {...DEFAULT_BRIM,...toggles};
+    const alone = generateBrims({...p,objects:[p.objects[0]]},opts);
+    expect(alone.regions).toEqual({outside:1,holes:1,pockets:1});
+    for (const enabled of [p.objects.map(o=>o.id),['object-0']]) {
+      const result = generateBrims(p,opts,enabled);
+      expect(result.objects[0]).toEqual(alone.objects[0]);
+      expect(result.regions.holes).toBe(1); expect(result.regions.pockets).toBe(1);
+      expect(has(result.objects[0].area,36,50)).toBe(toggles.holes);
+      expect(has(result.objects[0].area,136,50)).toBe(toggles.pockets);
+    }
+  });
+
+  it('applies negative volumes only to their parent and preserves every modifier role on export', () => {
+    const p = project([box(20,20,60,60),box(40,40)]);
+    p.objects[0].parts.push({name:'Cutout',kind:'NegativeVolume',mesh:box(35,35,30,30)});
+    for (const kind of ['ParameterModifier','SupportEnforcer','SupportBlocker']) {
+      p.objects[0].parts.push({name:kind,kind,mesh:box(0,0,100,100)});
+    }
+    const opts = {...DEFAULT_BRIM,holes:true}, result = generateBrims(p,opts);
+    expect(has(result.objects[0].footprint,50,50)).toBe(false);
+    expect(has(result.objects[1].footprint,50,50)).toBe(true);
+    expect(totalArea(result.objects[1].footprint)).toBe(400);
+    p.objects.forEach((object,i)=>expect(result.objects[i]).toEqual(generateBrims({...p,objects:[object]},opts).objects[0]));
+    const restored = importProject('modifiers.3mf',exportProject(p,result).slice().buffer);
+    restored.objects.forEach((object,i) => {
+      const originals = object.parts.slice(0,-1);
+      expect(originals.map(({name,kind})=>({name,kind}))).toEqual(p.objects[i].parts.map(({name,kind})=>({name,kind})));
+      originals.forEach((part,j)=>expect(corners(part.mesh)).toEqual(corners(p.objects[i].parts[j].mesh)));
+    });
+  });
+
+  it.each([false,true])('clips each independent brim to a concave bed (clockwise=%s)', clockwise => {
+    const p = project([box(25,25),box(50,50)]);
+    const bed = [{x:25,y:25},{x:90,y:25},{x:90,y:55},{x:55,y:55},{x:55,y:90},{x:25,y:90}];
+    p.bed = clockwise ? [...bed].reverse() : bed;
+    const result = generateBrims(p,settings);
+    for (const [i,object] of p.objects.entries()) {
+      const alone = generateBrims({...p,objects:[object]},settings);
+      expect(result.objects[i]).toEqual(alone.objects[0]);
+      expect(result.objects[i].warnings).toContain('Brim clipped to the project’s print bed.');
+      expect(totalArea(subtractPolygons(result.objects[i].area,[bed]))).toBe(0);
+      expect(totalArea(subtractPolygons(alone.circleSweep,[bed]))).toBe(0);
+      expect(result.objects[i].areaMm2).toBeGreaterThan(0);
+    }
+    const counterclockwise = generateBrims({...p,bed},settings);
+    result.objects.forEach((object,i) => {
+      const other = counterclockwise.objects[i];
+      // Winding can rotate a polygon's starting vertex without changing its area.
+      expect(totalArea(subtractPolygons(object.area,other.area))).toBe(0);
+      expect(totalArea(subtractPolygons(other.area,object.area))).toBe(0);
+    });
+  });
+
+  it.each([['object-0'],['object-1'],['object-0','object-1']].map(selected=>({selected})))('retains coincident instances and attaches brims only to $selected', ({selected}) => {
+    const p = importProject('coincident.3mf',archive(resource(1,box()),'<item objectid="1"/><item objectid="1"/>'));
+    const original = structuredClone(p), result = generateBrims(p,settings,selected);
+    const out = importProject('out.3mf',exportProject(p,result).slice().buffer);
+    expect(out.objects).toHaveLength(2);
+    expect(new Set(out.objects.map(o=>o.resourceId)).size).toBe(2);
+    out.objects.forEach((object,i) => {
+      expect(corners(object.parts[0].mesh)).toEqual(corners(p.objects[i].parts[0].mesh));
+      const brim = object.parts.find(part=>part.name==='Rolling brim');
+      expect(!!brim).toBe(selected.includes(p.objects[i].id));
+      if (brim) expect(totalArea(sliceMesh(brim.mesh,0.1))).toBeCloseTo(result.objects[i].areaMm2,3);
+    });
+    expect(p).toEqual(original);
   });
 
   it('keeps repeated, scaled and mirrored 3MF instances independent with only one selected', () => {

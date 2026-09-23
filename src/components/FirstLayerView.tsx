@@ -41,10 +41,16 @@ export default function FirstLayerView({ result, bed, showBrim, compare, probe, 
     <rect x={view.x} y={view.y} width={view.w} height={view.h} fill="url(#grid)"/>
     <g transform="scale(1,-1)"><path d={path([bed])} fill="none" stroke="#52616b" strokeWidth=".3"/>
       {probe && <path aria-label="Full rolling-circle sweep" d={path(result.circleSweep)} fill="#54d7c0" fillOpacity=".22" fillRule="evenodd"/>}
+      {/* Independent brims may overlap other models. Draw all brims first so
+          their object order cannot hide a footprint or comparison outline. */}
+      {showBrim && result.objects.map(object => <g key={object.id} opacity={selected && selected !== object.id ? 0.3 : 1}>
+        <path d={path(object.area)} fill="#ffb454" fillOpacity=".8" fillRule="evenodd" stroke="#ffd18f" strokeWidth=".06"/>
+      </g>)}
       {result.objects.map(object => <g key={object.id} opacity={selected && selected !== object.id ? 0.3 : 1}>
-        {showBrim && <path d={path(object.area)} fill="#ffb454" fillOpacity=".8" fillRule="evenodd" stroke="#ffd18f" strokeWidth=".06"/>}
         <path d={path(object.footprint)} fill="#91a9af" fillRule="evenodd" stroke="#ccdcdf" strokeWidth=".08"/>
-        {compare && <><path d={path(object.bottom)} fill="none" stroke="#7ad5ff" strokeWidth="3" vectorEffect="non-scaling-stroke"/><path d={path(object.top)} fill="none" stroke="#ec9de2" strokeWidth="2" strokeDasharray="5 5" vectorEffect="non-scaling-stroke"/></>}
+      </g>)}
+      {compare && result.objects.map(object => <g key={object.id} opacity={selected && selected !== object.id ? 0.3 : 1}>
+        <path d={path(object.bottom)} fill="none" stroke="#7ad5ff" strokeWidth="3" vectorEffect="non-scaling-stroke"/><path d={path(object.top)} fill="none" stroke="#ec9de2" strokeWidth="2" strokeDasharray="5 5" vectorEffect="non-scaling-stroke"/>
       </g>)}
       {probe && <path d={path(result.circleSweep)} fill="none" stroke="#75e6d1" strokeWidth="1.5" vectorEffect="non-scaling-stroke"/>}
       {probe && cursor && <circle cx={cursor.x} cy={cursor.y} r={result.settings.diameter / 2} fill="#54d7c01c" stroke="#75e6d1" strokeWidth="1.5" vectorEffect="non-scaling-stroke"/>}

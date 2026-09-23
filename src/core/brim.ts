@@ -9,17 +9,15 @@ export function footprint(object: ModelObject, z: number): Rings {
   return subtractPolygons(unionPolygons(positives), unionPolygons(negatives));
 }
 
-/** Measure outward from the rolled boundary, including its arcs across gaps. */
-function rolledBand(free: Rings, bounds: Bounds, width: number, gap: number): Rings {
+function rolledOutline(free: Rings, bounds: Bounds): Rings {
   // Recover the finite rolled outline from free space. Its outer boundary is
   // inside the model's bounds; the margin keeps polygon rounding off the crop.
   // This also discards the classifier's artificial frame around infinite space.
   const margin = 1;
-  const outline = subtractPolygons([[
+  return subtractPolygons([[
     { x: bounds.minX - margin, y: bounds.minY - margin }, { x: bounds.maxX + margin, y: bounds.minY - margin },
     { x: bounds.maxX + margin, y: bounds.maxY + margin }, { x: bounds.minX - margin, y: bounds.maxY + margin },
   ]], free);
-  return subtractPolygons(offsetPolygons(outline, gap + width), offsetPolygons(outline, gap));
 }
 
 export function generateBrims(project: Project, settings: BrimSettings, enabled = project.objects.map(o => o.id)): BrimResult {
@@ -34,7 +32,7 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
   const objects = project.objects.map((object, index) => {
     const shape = footprints[index], notes: string[] = [];
     // Each Objects-panel entry is a separate job. Its own parts/shells share
-    // one footprint; neighbours never affect clearance, width or ownership.
+    // one footprint; neighbours never affect the rolled boundary or brim.
     const regions = classifyRegions(shape, settings.diameter);
     counts.outside += regions.counts.outside; counts.holes += regions.counts.holes; counts.pockets += regions.counts.pockets;
     const bottom = footprint(object, heights.bottom);
@@ -45,11 +43,13 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
     let area: Rings = [];
     if (enabled.includes(object.id) && shape.length) {
       const allowed = unionPolygons([...regions.outside, ...(settings.holes ? regions.holes : []), ...(settings.pockets ? regions.pockets : [])]);
-      const bounds = boundsOf(shape);
-      area = rolledBand(allowed, bounds, settings.width, settings.gap);
+      const outline = rolledOutline(allowed, boundsOf(shape));
+      const inner = offsetPolygons(outline, settings.gap);
+      // Measure both bands from the same rolled boundary, including its arcs.
+      area = subtractPolygons(offsetPolygons(outline, settings.gap + settings.width), inner);
       // Preview the same boundary with a diameter-wide band. Neither this
       // sweep nor the exported brim is trimmed against other objects.
-      let sweep = rolledBand(allowed, bounds, settings.diameter, settings.gap);
+      let sweep = subtractPolygons(offsetPolygons(outline, settings.gap + settings.diameter), inner);
       if (project.bed.length) {
         const clipped = intersectPolygons(area, [project.bed]);
         if (totalArea(area) - totalArea(clipped) > 0.05) notes.push('Brim clipped to the project’s print bed.');

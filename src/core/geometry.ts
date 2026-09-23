@@ -1,4 +1,4 @@
-import { union, difference, intersect, inflatePaths, simplifyPaths, Clipper64, ClipType, FillRule, JoinType, EndType } from 'clipper2-ts';
+import { union, difference, intersect, inflatePaths, simplifyPaths, FillRule, JoinType, EndType } from 'clipper2-ts';
 import type { Bounds, Point, Polygon, Ring, Rings } from './types';
 
 // One integer unit is 1 micrometre. Rounding stays well inside JS's safe integer range.
@@ -8,7 +8,7 @@ const RULE = FillRule.NonZero;
 const toInt = (rings: Rings): Rings => rings.map(ring => ring.map(p => ({ x: Math.round(p.x * SCALE), y: Math.round(p.y * SCALE) })));
 const toMm = (rings: Rings): Rings => rings.map(ring => ring.map(p => ({ x: p.x / SCALE, y: p.y / SCALE })));
 const clean = (rings: Rings): Rings => simplifyPaths(rings, 2, true).filter(ring => ring.length >= 3 && Math.abs(signedArea(ring)) > 100);
-const offset = (rings: Rings, amount: number, end = EndType.Polygon): Rings => rings.length ? clean(inflatePaths(rings, amount, JoinType.Round, end, 2, ARC_TOLERANCE)) : [];
+const offset = (rings: Rings, amount: number): Rings => rings.length ? clean(inflatePaths(rings, amount, JoinType.Round, EndType.Polygon, 2, ARC_TOLERANCE)) : [];
 const merge = (rings: Rings): Rings => rings.length ? clean(union(rings, RULE)) : [];
 const subtract = (a: Rings, b: Rings): Rings => a.length ? clean(difference(a, b, RULE)) : [];
 const intersection = (a: Rings, b: Rings): Rings => a.length && b.length ? clean(intersect(a, b, RULE)) : [];
@@ -64,7 +64,7 @@ export interface ReachableRegions { outside: Rings; holes: Rings; pockets: Rings
  * essential: a narrow-neck pocket becomes enclosed after inflation, but is not a hole.
  * Dilating each selected centre region by r recovers the area a disk can cover.
  */
-export function classifyRegions(modelMm: Rings, diameter: number, overlap = 0): ReachableRegions {
+export function classifyRegions(modelMm: Rings, diameter: number): ReachableRegions {
   if (!modelMm.length) return { outside: [], holes: [], pockets: [], counts: { outside: 0, holes: 0, pockets: 0 } };
   const model = toInt(modelMm), radius = diameter * SCALE / 2;
   const b = boundsOf(model), margin = Math.max(radius * 5, 100 * SCALE);
@@ -83,7 +83,7 @@ export function classifyRegions(modelMm: Rings, diameter: number, overlap = 0): 
     result.counts[kind]++;
     // Restore the clearance micron too: it controls connectivity, not the
     // distance of the recovered boundary from straight model walls.
-    result[kind].push(...offset(flatten(component), radius + 1 + Math.max(0, overlap) * SCALE));
+    result[kind].push(...offset(flatten(component), radius + 1));
   }
   return { outside: toMm(merge(result.outside)), holes: toMm(merge(result.holes)), pockets: toMm(merge(result.pockets)), counts: result.counts };
 }

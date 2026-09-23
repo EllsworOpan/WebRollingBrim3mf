@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { strFromU8, strToU8, unzipSync } from 'fflate';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
+import { exportProject, importProject } from '../src/core/three-mf';
+import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM, type WorkerRequest, type WorkerResponse } from '../src/core/types';
 import { box, stl } from './fixtures';
-import { modelSnapshot, paintedSeed } from './painted-fixtures';
+import { MODEL, modelSnapshot, paintedSeed } from './painted-fixtures';
 
 describe('model worker lifecycle', () => {
   let scope: { postMessage: ReturnType<typeof vi.fn>; onmessage?: (message: {data: WorkerRequest}) => void };
@@ -37,6 +39,36 @@ describe('model worker lifecycle', () => {
     expect(send({type:'export',id:3,settings:DEFAULT_BRIM,enabled:['object-0']})).toMatchObject({type:'error',message:expect.stringContaining('Load a model')});
     expect(send({type:'load',id:4,name:'new.stl',bytes:stl(box(70,20))})).toMatchObject({type:'loaded',project:{name:'new.stl'}});
     expect(send({type:'generate',id:5,settings:DEFAULT_BRIM,enabled:['object-0']})).toMatchObject({type:'generated'});
+  });
+
+  it('switches painted instances across previews and exports without leaking brims or changing original parts', () => {
+    const files = unzipSync(new Uint8Array(paintedSeed(readFileSync('examples/validation.ini','utf8'))));
+    files[MODEL] = strToU8(strFromU8(files[MODEL]).replace('</build>','<item objectid="1" transform="1 0 0 0 1 0 0 0 1 40 0 0"/></build>'));
+    const bytes = zipSync(files).slice().buffer, pristine = importProject('painted-instances.3mf',bytes);
+    const originalParts = modelSnapshot(new Uint8Array(bytes)).map(o=>o.parts);
+    expect(send({type:'load',id:1,name:'painted-instances.3mf',bytes})).toMatchObject({type:'loaded'});
+    let id = 2;
+    for (const enabled of [['object-0'],['object-1'],['object-0','object-1'],[],['object-0']]) {
+      const preview = send({type:'generate',id:id++,settings:DEFAULT_BRIM,enabled});
+      if (preview.type !== 'generated') throw new Error('Expected preview');
+      expect(preview.result.objects.map(o=>o.mesh.triangles.length>0)).toEqual(pristine.objects.map(o=>enabled.includes(o.id)));
+      const output = send({type:'export',id:id++,settings:DEFAULT_BRIM,enabled});
+      if (!enabled.length) {
+        expect(output).toMatchObject({type:'error',message:expect.stringContaining('at least one brim')});
+        continue;
+      }
+      if (output.type !== 'exported') throw new Error('Expected export');
+      const standalone = exportProject(pristine,generateBrims(pristine,DEFAULT_BRIM,enabled));
+      expect(unzipSync(output.bytes)).toEqual(unzipSync(standalone));
+      const objects = modelSnapshot(output.bytes);
+      expect(objects).toHaveLength(2);
+      objects.forEach((object,i) => {
+        expect(object.parts.filter(p=>p.settings.name!=='Rolling brim')).toEqual(originalParts[i]);
+        expect(object.parts.filter(p=>p.settings.name==='Rolling brim')).toHaveLength(enabled.includes(pristine.objects[i].id) ? 1 : 0);
+        expect(object.settings.elefant_foot_compensation).toBe('0');
+      });
+    }
+    expect(unzipSync(new Uint8Array(bytes))).toEqual(files);
   });
 
   it.each(['stl','obj','3mf'])('always regenerates %s from its clean import after preview and export changes', format => {
