@@ -43,6 +43,8 @@ For a custom domain, configure it in **Settings → Pages**, complete GitHub's D
 
 The setup follows [Vite's GitHub Pages deployment guide](https://vite.dev/guide/static-deploy.html#github-pages) and [GitHub's Pages deployment action](https://github.com/actions/deploy-pages).
 
+Pull requests also run typechecking, tests, license checks and a production build under a repository subpath. They do not deploy the site or require Pages configuration.
+
 ### Test a repository subpath locally
 
 Use the same base path for both build and preview. For example, in PowerShell:
@@ -99,6 +101,7 @@ Other settings, including speeds and perimeter generation, inherit from the exis
 - Standard 3MF: same-file component assemblies, unit conversions, nested transforms, mirrored meshes, multiple build objects and repeated instances.
 - PrusaSlicer 2.x 3MF: original archive entries are retained. Original model triangles and their attributes, object/part overrides (except elephant-foot compensation), profiles, and metadata are preserved when adding a brim to a direct mesh object. The new mesh is transformed back into each parent's coordinates. Independently generated instance brims are detached into separate object resources when needed.
 - Reimporting a generated file replaces marked brim parts. It does not accumulate copies. Identification uses the generated part's `source_file` marker, which survives a PrusaSlicer 2.9.6 save.
+- Replacement removes unused vertices from the old brim as well as its triangles, keeping repeated exports from growing. Original model vertices, face attributes, negative volumes and part settings are retained. Nonprintable build items are kept unchanged.
 - Native project thumbnails are retained and can therefore show the input before the new brim; PrusaSlicer can regenerate them when saving.
 - Known project bed boundaries clip the brim. Files without bed metadata have no bed clipping. Existing native brim and general XY size compensation settings are retained, with notes where detected. Elephant-foot compensation is overridden to 0 per object.
 - Overlapping brim bands use stable ownership: earlier objects retain shared regions, later brims are clipped with a 0.02 mm separation. A note explains affected objects. Rolling-circle accessibility considers the whole arrangement.
@@ -109,6 +112,7 @@ Other settings, including speeds and perimeter generation, inherit from the exis
 - Repeated instances with custom layer-height profiles/ranges must be made independent objects in PrusaSlicer before processing. Slicer-configured component assemblies also require a normal PrusaSlicer save.
 - Rafts are unsupported. 3MF placements are respected; a floating model with no section at the sampling height gets no brim. Automatic orientation, mesh repair, arrangement and support generation are outside this workbench.
 - Open or inconsistently oriented cross-sections are reported instead of guessing a closure. The model should be repaired and saved in the slicer. Apart from STL triangles with coincident corners, degenerate or nonmanifold input is not automatically repaired.
+- Invalid placements, duplicate resource IDs, incomplete or overlapping part ranges, and unusable bed outlines are rejected before generating brims. First-layer heights are supported from 0.05 to 1 mm; unusable stored heights are reported rather than offered as a preset.
 - The 2D footprint applies negative volumes. The 3D view shows original positive meshes, not a Boolean rendering of negative volumes/modifiers.
 - Geometry is quantized to 0.001 mm for polygon operations. The preview is uncompensated mesh geometry, not deposited extrusion. Small slivers can disappear during slicing, and compensation can alter the final separation gap.
 - Up to 200 MB input, 500 MB expanded 3MF data, and two million scene triangles. Repeated instances count toward the scene limit.
@@ -120,6 +124,8 @@ npm run check
 ```
 
 Tests cover midpoint sampling on a flared base, watertight extrusion and hole walls, broken contours, mirrored meshes, original hole/pocket semantics, shared brim ownership, bed clipping, negative volumes, object grouping, unit/placement transforms, repeated instances, preserved metadata/settings/triangle attributes, malformed files, and replacement of generated brims.
+
+Hardening regressions check closed, consistently oriented brim meshes across widths, zero/negative separation gaps and layer heights, including collinear hole bridges and nested islands. They also cover repeated-export vertex counts, generated parts interleaved with original parts, nonprintable items, archive/XML boundaries, truncated STL files, discarded triangles below the model, and recovery after failed worker requests. A processing error clears the previous preview and prepared download so stale geometry cannot be mistaken for the new result.
 
 When PrusaSlicer is installed at its usual Windows path, the integration test also opens and saves a generated two-object project, verifies the saved per-part settings, and slices it. Every identified brim extrusion must be a perimeter on the first layer. Set `PRUSA_SLICER` to a console executable elsewhere to enable this test; without a slicer the integration test is explicitly skipped.
 

@@ -6,6 +6,7 @@ self.onmessage = ({ data }: MessageEvent<WorkerRequest>) => {
   const send = (message: WorkerResponse) => self.postMessage(message);
   try {
     if (data.type === 'load') {
+      project = undefined;
       project = importProject(data.name, data.bytes);
       const { source: _source, ...publicProject } = project;
       send({ type: 'loaded', id: data.id, project: publicProject });

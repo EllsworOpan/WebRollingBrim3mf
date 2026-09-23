@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import { loadStl } from '../src/core/mesh';
 import { exportProject, importProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
@@ -18,6 +19,52 @@ function expectClosed(mesh: Mesh) {
 }
 
 describe('STL topology in 3MF', () => {
+  it('ignores discarded triangles when grounding the usable model', () => {
+    const mesh = box();
+    mesh.vertices.push(0,0,-100);
+    mesh.triangles.push(8,8,8);
+    const loaded = loadStl(stl(mesh));
+    expect(Math.min(...loaded.vertices.filter((_,i) => i % 3 === 2))).toBe(0);
+    expectClosed(loaded);
+    expect(generateBrims(importProject('grounded.stl',stl(mesh)), DEFAULT_BRIM).objects[0].areaMm2).toBeGreaterThan(0);
+  });
+  it('rejects truncated binary data with a useful error', () => {
+    const bytes = stl(box(), true).slice(0,-1);
+    expect(() => loadStl(bytes)).toThrow(/STL.*truncated|STL.*length/);
+  });
+  it('checks binary face limits before the loader can allocate from an untrusted count', () => {
+    const bytes = new ArrayBuffer(84);
+    new DataView(bytes).setUint32(80, 0xffffffff, true);
+    const parse = vi.spyOn(STLLoader.prototype, 'parse').mockImplementation(() => { throw new Error('Loader must not allocate'); });
+    try {
+      expect(() => loadStl(bytes)).toThrow(/triangle.*limit/);
+      expect(parse).not.toHaveBeenCalled();
+    } finally { parse.mockRestore(); }
+  });
+  it('accepts a binary STL whose header starts with solid', () => {
+    const bytes = stl(box(), true);
+    new Uint8Array(bytes).set(new TextEncoder().encode('solid binary model'));
+    expectClosed(loadStl(bytes));
+  });
+  it.each(['missing solid end', 'missing facet end', 'missing vertex', 'extra vertex'])('rejects an ASCII STL with %s instead of silently dropping model data', defect => {
+    const valid = new TextDecoder().decode(stl(box()));
+    let damaged = valid;
+    if (defect === 'missing solid end') damaged = valid + '\n' + valid.replace('endsolid fixture','');
+    if (defect === 'missing facet end') damaged = valid.replace('endfacet','');
+    if (defect === 'missing vertex') damaged = valid.replace(/vertex[^\n]*\n/,'');
+    if (defect === 'extra vertex') damaged = valid.replace('endloop','vertex 0 0 0\nendloop');
+    expect(() => loadStl(new TextEncoder().encode(damaged).buffer)).toThrow(/ASCII STL/);
+  });
+  it('accepts multiple complete ASCII solids with CRLF and a UTF-8 BOM', () => {
+    const valid = new TextDecoder().decode(stl(box()));
+    const text = '\ufeff' + valid.replaceAll('\n','\r\n') + '\r\n' + new TextDecoder().decode(stl(box(70,20)));
+    const mesh = loadStl(new TextEncoder().encode(text).buffer);
+    expect(mesh.triangles).toHaveLength(24*3);
+    expectClosed(mesh);
+  });
+  it.each([new ArrayBuffer(0), new TextEncoder().encode('solid empty\nendsolid empty').buffer])('rejects empty inputs with an STL error', bytes => {
+    expect(() => loadStl(bytes)).toThrow(/STL/);
+  });
   it.each([false,true])('keeps adjacent faces connected with opposite edge directions (binary: %s)', binary => {
     const original = box(), input = stl(original,binary), mesh = loadStl(input);
     expect(mesh.vertices).toHaveLength(8*3);

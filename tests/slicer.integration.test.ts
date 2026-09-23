@@ -12,6 +12,15 @@ import { sliceMesh } from '../src/core/mesh';
 
 const slicer = process.env.PRUSA_SLICER || 'C:\\Program Files\\Prusa3D\\PrusaSlicer\\prusa-slicer-console.exe';
 describe.skipIf(!existsSync(slicer))('PrusaSlicer integration', () => {
+  it('opens a zero-gap brim without fixing missing triangle connections', () => {
+    mkdirSync('.local',{recursive:true});
+    const p=project([box(-30,10,7,13)]), result=generateBrims(p,{...DEFAULT_BRIM,gap:0});
+    const out=resolve('.local/zero-gap-brim.3mf');
+    writeFileSync(out,exportProject(p,result));
+    const info=execFileSync(slicer,['--info',out],{encoding:'utf8',timeout:60000});
+    expect(info).toMatch(/manifold = yes/);
+    expect(info).not.toMatch(/(?:open_edges|edges_fixed|facets_added|facets_removed) = [1-9]/);
+  });
   it('opens an OBJ-derived model and brim as a manifold multipart 3MF', () => {
     mkdirSync('.local',{recursive:true});
     const mesh=box(), vertices=Array.from({length:mesh.vertices.length/3},(_,i)=>`v ${mesh.vertices.slice(i*3,i*3+3).join(' ')}`);

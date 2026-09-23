@@ -1,3 +1,6 @@
+export const MIN_LAYER_HEIGHT = 0.05;
+export const MAX_LAYER_HEIGHT = 1;
+
 export function sampleHeights(height: number) {
   // Comparison cuts are illustrative sections inside the first layer, not a
   // bed-contact test. A one-micron cut can miss otherwise flat STL bases with

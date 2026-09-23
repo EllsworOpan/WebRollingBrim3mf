@@ -3,6 +3,8 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { Matrix4 } from 'three';
 import { compactMesh, loadStl, transformMesh } from './mesh';
 import { importObj } from './obj';
+import { signedArea } from './geometry';
+import { MIN_LAYER_HEIGHT, MAX_LAYER_HEIGHT } from './first-layer';
 import type { BrimResult, Mesh, ModelObject, ModelPart, Project } from './types';
 
 const NS = 'http://schemas.microsoft.com/3dmanufacturing/core/2015/02';
@@ -35,7 +37,8 @@ function matrix(value: string | null, scale = 1): Matrix4 {
   if (t.length !== 12) throw new Error('Invalid 3MF placement transform.');
   const result = new Matrix4().set(t[0],t[3],t[6],t[9], t[1],t[4],t[7],t[10], t[2],t[5],t[8],t[11], 0,0,0,1);
   result.premultiply(new Matrix4().makeScale(scale,scale,scale));
-  if (Math.abs(result.determinant()) < 1e-12) throw new Error('A model has a singular placement transform.');
+  const determinant = result.determinant();
+  if (!Number.isFinite(determinant) || Math.abs(determinant) < 1e-12) throw new Error('A model has an invalid or singular placement transform.');
   return result;
 }
 function readMesh(element: El): Mesh {
@@ -49,6 +52,24 @@ function safePath(path: string): string {
   const decoded = decodeURIComponent(path).replaceAll('\\', '/').replace(/^\/+/, '');
   if (decoded.split('/').includes('..') || decoded.includes(':')) throw new Error('Unsupported archive resource path.');
   return decoded;
+}
+function checkIds(elements: El[], label: string) {
+  const ids = new Set<number>();
+  for (const element of elements) {
+    const id = num(element.getAttribute('id'));
+    if (!Number.isSafeInteger(id) || id < 1) throw new Error(`Invalid ${label} ID in the 3MF.`);
+    if (ids.has(id)) throw new Error(`Duplicate ${label} ID in the 3MF.`);
+    ids.add(id);
+  }
+}
+function checkVolumes(volumes: El[], triangleCount: number) {
+  const ranges = volumes.map(v => ({ first: num(v.getAttribute('firstid')), last: num(v.getAttribute('lastid')) })).sort((a,b) => a.first - b.first);
+  let next = 0;
+  for (const {first, last} of ranges) {
+    if (!Number.isInteger(first) || !Number.isInteger(last) || first !== next || last < first || last >= triangleCount) throw new Error('The 3MF part triangle ranges overlap, have gaps, or are out of bounds. Save a repaired project in PrusaSlicer.');
+    next = last + 1;
+  }
+  if (next !== triangleCount) throw new Error('The 3MF part triangle ranges do not cover the model. Save a repaired project in PrusaSlicer.');
 }
 export function importProject(name: string, bytes: ArrayBuffer): Project {
   if (bytes.byteLength > 200_000_000) throw new Error('Choose a file smaller than 200 MB.');
@@ -71,29 +92,37 @@ export function importProject(name: string, bytes: ArrayBuffer): Project {
   const modelPath = safePath(relation.getAttribute('Target') || '');
   if (!files[modelPath]) throw new Error('The 3MF model resource is missing.');
   const doc = xml(strFromU8(files[modelPath])), root = doc.documentElement;
+  if (root.localName !== 'model' || root.namespaceURI !== NS) throw new Error('The 3MF resource is not a supported core model.');
   if ((root.getAttribute('requiredextensions') || '').trim()) throw new Error('This 3MF requires extensions not supported by this workbench. Save a standard PrusaSlicer 3MF first.');
   const units: Record<string, number> = { micron: 0.001, millimeter: 1, centimeter: 10, inch: 25.4, foot: 304.8, meter: 1000 };
-  const scale = units[root.getAttribute('unit') || 'millimeter'];
+  const unit = root.getAttribute('unit') || 'millimeter';
+  const scale = Object.hasOwn(units, unit) ? units[unit] : undefined;
   if (!scale) throw new Error('Unsupported 3MF measurement unit.');
   const resources = children(child(root, 'resources'), 'object');
   const configs = files[CONFIG] ? children(xml(strFromU8(files[CONFIG])).documentElement, 'object') : [];
+  checkIds(Array.from(child(root, 'resources').childNodes).filter(n => n.nodeType === 1) as El[], 'resource');
+  checkIds(configs, 'object configuration');
   const warnings: string[] = [];
   let meshCount = 0;
-  const partsFor = (id: string, transform: Matrix4, seen = new Set<string>()): ModelPart[] => {
+  const partsFor = (id: string, transform: Matrix4, seen = new Set<string>(), assembly = false): ModelPart[] => {
     if (seen.has(id) || seen.size > 64) throw new Error('The 3MF has circular or excessive component nesting.');
     seen = new Set(seen).add(id);
     const resource = resources.find(r => r.getAttribute('id') === id);
     if (!resource) throw new Error('A 3MF component references a missing object.');
     const meshElement = children(resource, 'mesh')[0];
+    const config = configs.find(c => c.getAttribute('id') === id);
+    if (config && (assembly || !meshElement)) throw new Error('Component assemblies with slicer-specific settings are not supported. Save this as a standard PrusaSlicer 3MF first.');
     if (!meshElement) return children(child(resource, 'components'), 'component').flatMap(c => {
       if (Array.from(c.attributes).some(a => a.localName === 'path')) throw new Error('External model components are not supported. Save this as a PrusaSlicer 3MF project first.');
-      return partsFor(c.getAttribute('objectid') || '', transform.clone().multiply(matrix(c.getAttribute('transform'))), seen);
+      return partsFor(c.getAttribute('objectid') || '', transform.clone().multiply(matrix(c.getAttribute('transform'))), seen, true);
     });
     const mesh = readMesh(meshElement);
     meshCount += mesh.triangles.length / 3;
     if (meshCount > 2_000_000) throw new Error('This scene exceeds the two-million-triangle browser limit.');
-    const config = configs.find(c => c.getAttribute('id') === id), volumes = config ? children(config, 'volume') : [];
+    const volumes = config ? children(config, 'volume') : [];
     if (!volumes.length) return [{ name: meta(config, 'name') || resource.getAttribute('name') || `Model ${id}`, kind: 'ModelPart', mesh: transformMesh(mesh, transform) }];
+    // Validate generated parts too, before excluding them from the preview.
+    checkVolumes(volumes, mesh.triangles.length / 3);
     return volumes.filter(v => !generated(v)).map(volume => {
       const first = num(volume.getAttribute('firstid')), last = num(volume.getAttribute('lastid'));
       if (!Number.isInteger(first) || !Number.isInteger(last) || first < 0 || last < first || last >= mesh.triangles.length / 3) throw new Error('A 3MF part has invalid triangle ranges.');
@@ -104,7 +133,7 @@ export function importProject(name: string, bytes: ArrayBuffer): Project {
   };
   const objects: ModelObject[] = [];
   children(child(root, 'build'), 'item').forEach((item, index) => {
-    if (item.getAttribute('printable') === '0') return;
+    if (['0','false'].includes(item.getAttribute('printable') || '')) return;
     const id = item.getAttribute('objectid') || '', config = configs.find(c => c.getAttribute('id') === id);
     const transform = matrix(item.getAttribute('transform'), scale), parts = partsFor(id, transform);
     if (parts.some(p => p.kind === 'ModelPart')) objects.push({ id: `object-${index}`, name: meta(config, 'name') || resources.find(r => r.getAttribute('id') === id)?.getAttribute('name') || parts[0]?.name || `Object ${index + 1}`, resourceId: id, buildIndex: index, transform: transform.toArray(), parts });
@@ -115,14 +144,20 @@ export function importProject(name: string, bytes: ArrayBuffer): Project {
   const ini = files['Metadata/Slic3r_PE.config'] ? strFromU8(files['Metadata/Slic3r_PE.config']) : '';
   const setting = (key: string) => ini.match(new RegExp(`^;?\\s*${key}\\s*=\\s*(.+)$`, 'm'))?.[1].trim();
   const height = setting('first_layer_height');
-  const bed = (setting('bed_shape') || '').split(',').filter(Boolean).map(p => { const [x,y] = p.split('x').map(Number); return { x,y }; });
-  if (bed.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y))) throw new Error('The project has an invalid bed shape.');
+  const bed = (setting('bed_shape') || '').split(',').filter(Boolean).map(p => {
+    const coords = p.trim().split('x');
+    if (coords.length !== 2 || coords.some(c => !c.trim())) throw new Error('The project has an invalid bed shape.');
+    const [x,y] = coords.map(Number); return { x,y };
+  });
+  if (bed.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y) || Math.abs(p.x) > 1e6 || Math.abs(p.y) > 1e6) || (bed.length && (bed.length < 3 || Math.abs(signedArea(bed)) < 1e-6))) throw new Error('The project has an invalid bed shape.');
   if (!bed.length) warnings.push('No print bed is stored in this file; brim edges are not clipped to a bed.');
   if (Number(setting('xy_size_compensation')) !== 0 && setting('xy_size_compensation')) warnings.push('The project applies XY size compensation. The preview shows uncompensated mesh sections; check the final gap after slicing.');
   if (Number(setting('raft_layers')) > 0) throw new Error('Raft projects are not supported. Disable the raft and place the model on the bed first.');
   if (Number(setting('brim_width')) > 0) warnings.push('Native slicer brim is enabled in this project and may add another brim. Turn it off in PrusaSlicer if unwanted.');
   if (configs.some(c => children(c, 'volume').some(generated))) warnings.push('Previously generated rolling-brim parts will be replaced on export.');
-  return { name, objects, bed, warnings, source: { files, modelPath }, suggestedHeight: height && !height.endsWith('%') && Number(height) > 0 ? Number(height) : undefined };
+  const suggestedHeight = height && Number.isFinite(Number(height)) && Number(height) >= MIN_LAYER_HEIGHT && Number(height) <= MAX_LAYER_HEIGHT ? Number(height) : undefined;
+  if (height && !height.endsWith('%') && suggestedHeight === undefined) warnings.push(`The stored first-layer height is outside the supported ${MIN_LAYER_HEIGHT}–${MAX_LAYER_HEIGHT} mm range. Choose the height manually.`);
+  return { name, objects, bed, warnings, source: { files, modelPath }, suggestedHeight };
 }
 
 function addMeta(doc: Doc, parent: El, type: string, key: string, value: string) {
@@ -186,8 +221,21 @@ export function exportProject(project: Project, result: BrimResult): Uint8Array 
       const remove = new Set<number>();
       for (const v of volumes.filter(generated)) { for (let i = Number(v.getAttribute('firstid')); i <= Number(v.getAttribute('lastid')); i++) remove.add(i); cfg.removeChild(v); }
       if (remove.size) {
-        const removedBefore = (n: number) => [...remove].filter(i => i < n).length;
-        for (const v of volumes.filter(v => !generated(v))) { for (const key of ['firstid','lastid']) { const n = Number(v.getAttribute(key)); v.setAttribute(key, String(n - removedBefore(n))); } }
+        const removedBefore = new Int32Array(all.length + 1);
+        const vertices = child(meshElement, 'vertices'), points = children(vertices, 'vertex');
+        const unused = new Uint8Array(points.length), vertexKeys = ['v1','v2','v3'];
+        all.forEach((t,i) => {
+          removedBefore[i+1] = removedBefore[i] + Number(remove.has(i));
+          if (remove.has(i)) for (const key of vertexKeys) unused[Number(t.getAttribute(key))] = 1;
+        });
+        // Only delete vertices owned exclusively by removed brims. Original
+        // unreferenced vertices and vertices shared with body faces survive.
+        all.forEach((t,i) => { if (!remove.has(i)) for (const key of vertexKeys) unused[Number(t.getAttribute(key))] = 0; });
+        const remap = new Int32Array(points.length);
+        let next = 0;
+        points.forEach((v,i) => { if (unused[i]) vertices.removeChild(v); else remap[i] = next++; });
+        for (const v of volumes.filter(v => !generated(v))) { for (const key of ['firstid','lastid']) { const n = Number(v.getAttribute(key)); v.setAttribute(key, String(n - removedBefore[n])); } }
+        all.forEach((t,i) => { if (!remove.has(i)) for (const key of vertexKeys) t.setAttribute(key, String(remap[Number(t.getAttribute(key))])); });
         all.forEach((t,i) => { if (remove.has(i)) triangles.removeChild(t); });
       }
       if (!children(cfg, 'volume').length) partConfig(config, cfg, 0, children(triangles, 'triangle').length, object.name);

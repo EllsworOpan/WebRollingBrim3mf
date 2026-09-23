@@ -1,6 +1,6 @@
 import { boundsOf, classifyRegions, intersectPolygons, offsetPolygons, subtractPolygons, totalArea, unionPolygons } from './geometry';
 import { extrude, sliceMesh } from './mesh';
-import { sampleHeights } from './first-layer';
+import { sampleHeights, MIN_LAYER_HEIGHT, MAX_LAYER_HEIGHT } from './first-layer';
 import type { BrimResult, BrimSettings, ModelObject, Project, Rings } from './types';
 
 export function footprint(object: ModelObject, z: number): Rings {
@@ -11,11 +11,11 @@ export function footprint(object: ModelObject, z: number): Rings {
 
 export function generateBrims(project: Project, settings: BrimSettings, enabled = project.objects.map(o => o.id)): BrimResult {
   const start = performance.now();
-  if (![settings.diameter, settings.width, settings.gap, settings.height, settings.perimeters].every(Number.isFinite) || settings.diameter < 0.5 || settings.diameter > 100 || settings.width < 0.1 || settings.width > 50 || settings.height < 0.05 || settings.height > 1 || settings.gap < -0.5 || settings.gap > 5 || settings.perimeters < 1 || settings.perimeters > 999 || !Number.isInteger(settings.perimeters)) throw new Error('Brim settings are outside the supported range.');
+  if (![settings.diameter, settings.width, settings.gap, settings.height, settings.perimeters].every(Number.isFinite) || settings.diameter < 0.5 || settings.diameter > 100 || settings.width < 0.1 || settings.width > 50 || settings.height < MIN_LAYER_HEIGHT || settings.height > MAX_LAYER_HEIGHT || settings.gap < -0.5 || settings.gap > 5 || settings.perimeters < 1 || settings.perimeters > 999 || !Number.isInteger(settings.perimeters)) throw new Error('Brim settings are outside the supported range.');
   const heights = sampleHeights(settings.height);
   const footprints = project.objects.map(o => footprint(o, heights.middle));
   const model = unionPolygons(footprints.flat());
-  if (!model.length) throw new Error('No model intersects the first-layer sampling plane. Place the models on the bed in your slicer.');
+  if (!model.length) throw new Error('No model intersects the first-layer sampling plane. Check the assumed first-layer height and the model placement in your slicer.');
   const regions = classifyRegions(model, settings.diameter, -settings.gap);
   const allowed = unionPolygons([...regions.outside, ...(settings.holes ? regions.holes : []), ...(settings.pockets ? regions.pockets : [])]);
   const warnings: string[] = [];
