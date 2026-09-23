@@ -38,7 +38,7 @@ export default function FirstLayerView({ result, bed, showBrim, compare, probe, 
       {result.objects.map(object => <g key={object.id} opacity={selected && selected !== object.id ? 0.3 : 1}>
         {showBrim && <path d={path(object.area)} fill="#ffb454" fillOpacity=".8" fillRule="evenodd" stroke="#ffd18f" strokeWidth=".06"/>}
         <path d={path(object.footprint)} fill="#91a9af" fillRule="evenodd" stroke="#ccdcdf" strokeWidth=".08"/>
-        {compare && <><path d={path(object.bottom)} fill="none" stroke="#7ad5ff" strokeWidth=".22" strokeDasharray=".8 .5"/><path d={path(object.top)} fill="none" stroke="#ec9de2" strokeWidth=".22" strokeDasharray=".4 .3"/></>}
+        {compare && <><path d={path(object.bottom)} fill="none" stroke="#7ad5ff" strokeWidth="3" vectorEffect="non-scaling-stroke"/><path d={path(object.top)} fill="none" stroke="#ec9de2" strokeWidth="2" strokeDasharray="5 5" vectorEffect="non-scaling-stroke"/></>}
       </g>)}
       {probe && cursor && <circle cx={cursor.x} cy={cursor.y} r={result.settings.diameter / 2} fill="#ffb45418" stroke="#ffd18f" strokeWidth=".15" strokeDasharray=".8 .5"/>}
     </g></svg><div className="view-instructions">Drag to pan <span>·</span> Scroll to zoom <span>·</span> Double-click to fit</div>

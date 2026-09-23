@@ -12,6 +12,16 @@ import { sliceMesh } from '../src/core/mesh';
 
 const slicer = process.env.PRUSA_SLICER || 'C:\\Program Files\\Prusa3D\\PrusaSlicer\\prusa-slicer-console.exe';
 describe.skipIf(!existsSync(slicer))('PrusaSlicer integration', () => {
+  it('opens an OBJ-derived model and brim as a manifold multipart 3MF', () => {
+    mkdirSync('.local',{recursive:true});
+    const mesh=box(), vertices=Array.from({length:mesh.vertices.length/3},(_,i)=>`v ${mesh.vertices.slice(i*3,i*3+3).join(' ')}`);
+    const faces=Array.from({length:mesh.triangles.length/3},(_,i)=>`f ${mesh.triangles.slice(i*3,i*3+3).map(n=>n+1).join(' ')}`);
+    const p=importProject('body.obj',strToU8(['o OBJ body',...vertices,...faces].join('\n')).slice().buffer);
+    const out=resolve('.local/obj-brim.3mf');
+    writeFileSync(out,exportProject(p,generateBrims(p,DEFAULT_BRIM)));
+    const info=execFileSync(slicer,['--info',out],{encoding:'utf8',timeout:60000});
+    expect(info).toMatch(/manifold = yes/); expect(info).not.toMatch(/open_edges/);
+  });
   it('reopens configured brim parts and slices them as one layer of perimeters', () => {
     mkdirSync('.local', { recursive: true });
     const p = project([box(), box(70,20)]), result = generateBrims(p,DEFAULT_BRIM);

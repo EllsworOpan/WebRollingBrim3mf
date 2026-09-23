@@ -148,3 +148,21 @@
 .object-row button span { overflow:hidden; text-overflow:ellipsis; }
 .object-row small { display:block; font-size:9px; margin-top:4px; color:#9eb1ba; }
 .lower-outline{color:#7ad5ff}.upper-outline{color:#ec9de2}.height-link{margin:0 0 18px}.outline-control{display:flex;align-items:center;gap:6px;white-space:nowrap;font-size:10px;color:#a8bcc6}.outline-control input{accent-color:#ffb454}.viewer-legend{flex-wrap:wrap}.print-settings-body>p{font-size:11px;line-height:1.7}.layer-view svg{touch-action:none}.source-text strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.result-footnote{line-height:1.65}.viewer-heading{pointer-events:none}.sidebar{max-height:none}.help-button{flex-shrink:0}@media(max-width:600px){.first-layer-caption{display:none}.layer-bar{flex-wrap:wrap;padding-top:10px;padding-bottom:10px}.outline-control{margin-left:auto}.viewer-legend{max-width:90%}.objects-section{grid-column:1/-1}}
+
+/* Keep mesh-only details out of the way until requested. */
+.compact-layer-bar { min-height:52px; gap:18px; padding:10px 24px; }
+.compact-layer-bar .layer-title strong { margin-left:5px; color:#d3e0e5; font:11px Consolas,monospace; }
+.compact-metrics { flex:1; color:#91a8b4; font-size:11px; white-space:nowrap; }
+.details-toggle { display:flex; align-items:center; gap:7px; background:transparent; padding:6px 0; color:#bdcdd3; font-size:11px; }
+.details-toggle:hover { color:var(--accent); }
+.details-toggle[aria-expanded=true] > svg { transform:rotate(180deg); }
+.outline-explanation { padding:12px 24px; background:#18262e; border-bottom:1px solid var(--border); color:#9eb5c0; font-size:11px; line-height:1.7; }
+.outline-explanation strong { color:#cfdee5; margin-right:5px; }
+.viewer-legend .lower-outline { color:#7ad5ff; }
+.viewer-legend .upper-outline { color:#ec9de2; }
+.viewer-legend .lower-outline::before, .viewer-legend .upper-outline::before { content:''; width:14px; border-top:2px solid currentColor; }
+.viewer-legend .upper-outline::before { border-top-style:dashed; }
+.compact-download { margin:0; padding:10px 24px; background:#18262e; font-size:11px; color:#b8cbd3; }
+.compact-download a { color:var(--accent); text-underline-offset:3px; }
+@media(max-width:1050px) { .compact-layer-bar:has(.outline-control) { gap:8px 14px; padding:10px 18px; } }
+@media(max-width:600px) { .compact-metrics { font-size:10px; text-align:right; } .compact-layer-bar .outline-control { margin-left:0; flex:1; } .compact-layer-bar .layer-title { font-size:10px; } .outline-explanation { padding:12px 18px; } }

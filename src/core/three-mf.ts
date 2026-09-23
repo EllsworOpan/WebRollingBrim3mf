@@ -2,6 +2,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { Matrix4 } from 'three';
 import { compactMesh, loadStl, transformMesh } from './mesh';
+import { importObj } from './obj';
 import type { BrimResult, Mesh, ModelObject, ModelPart, Project } from './types';
 
 const NS = 'http://schemas.microsoft.com/3dmanufacturing/core/2015/02';
@@ -51,11 +52,12 @@ function safePath(path: string): string {
 }
 export function importProject(name: string, bytes: ArrayBuffer): Project {
   if (bytes.byteLength > 200_000_000) throw new Error('Choose a file smaller than 200 MB.');
+  if (/\.obj$/i.test(name)) return importObj(name, bytes);
   if (/\.stl$/i.test(name)) {
     const mesh = loadStl(bytes);
     return { name, objects: [{ id: 'object-0', name: name.replace(/\.stl$/i, ''), resourceId: '1', buildIndex: 0, transform: new Matrix4().toArray(), parts: [{ name, kind: 'ModelPart', mesh }] }], bed: [], warnings: ['STL units are assumed to be millimetres. The model was placed on Z=0; disconnected shells remain one object.'] };
   }
-  if (!/\.3mf$/i.test(name)) throw new Error('Choose an STL or 3MF file.');
+  if (!/\.3mf$/i.test(name)) throw new Error('Choose an STL, OBJ or 3MF file.');
   let expanded = 0, entries = 0;
   const files = unzipSync(new Uint8Array(bytes), { filter: file => {
     expanded += file.originalSize; entries++;

@@ -1,5 +1,6 @@
 import { boundsOf, classifyRegions, intersectPolygons, offsetPolygons, subtractPolygons, totalArea, unionPolygons } from './geometry';
 import { extrude, sliceMesh } from './mesh';
+import { sampleHeights } from './first-layer';
 import type { BrimResult, BrimSettings, ModelObject, Project, Rings } from './types';
 
 export function footprint(object: ModelObject, z: number): Rings {
@@ -11,7 +12,8 @@ export function footprint(object: ModelObject, z: number): Rings {
 export function generateBrims(project: Project, settings: BrimSettings, enabled = project.objects.map(o => o.id)): BrimResult {
   const start = performance.now();
   if (![settings.diameter, settings.width, settings.gap, settings.height, settings.perimeters].every(Number.isFinite) || settings.diameter < 0.5 || settings.diameter > 100 || settings.width < 0.1 || settings.width > 50 || settings.height < 0.05 || settings.height > 1 || settings.gap < -0.5 || settings.gap > 5 || settings.perimeters < 1 || settings.perimeters > 999 || !Number.isInteger(settings.perimeters)) throw new Error('Brim settings are outside the supported range.');
-  const footprints = project.objects.map(o => footprint(o, settings.height / 2));
+  const heights = sampleHeights(settings.height);
+  const footprints = project.objects.map(o => footprint(o, heights.middle));
   const model = unionPolygons(footprints.flat());
   if (!model.length) throw new Error('No model intersects the first-layer sampling plane. Place the models on the bed in your slicer.');
   const regions = classifyRegions(model, settings.diameter, -settings.gap);
@@ -20,11 +22,11 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
   let occupied: Rings = [];
   const objects = project.objects.map((object, index) => {
     const shape = footprints[index], notes: string[] = [];
-    const bottom = footprint(object, Math.min(0.001, settings.height / 100));
-    const top = footprint(object, settings.height - Math.min(0.001, settings.height / 100));
+    const bottom = footprint(object, heights.bottom);
+    const top = footprint(object, heights.top);
     const changeArea = totalArea(subtractPolygons(top, bottom)) + totalArea(subtractPolygons(bottom, top));
     if (!shape.length) notes.push('No footprint at the sampling plane; no brim was added.');
-    if (changeArea > Math.max(0.5, totalArea(shape) * 0.01)) notes.push('The base changes shape within the first layer. Compare the lower and upper outlines.');
+    if (changeArea > Math.max(0.5, totalArea(shape) * 0.01)) notes.push('The base changes shape within the first layer. Use Compare layer outlines to inspect it.');
     let area: Rings = [];
     if (enabled.includes(object.id) && shape.length) {
       area = intersectPolygons(subtractPolygons(offsetPolygons(shape, settings.width + settings.gap), offsetPolygons(shape, settings.gap)), allowed);
