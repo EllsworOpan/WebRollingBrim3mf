@@ -82,59 +82,12 @@ describe('model worker lifecycle', () => {
     const loaded = send({type:'load',id:1,name:'multi.3mf',bytes:nativeFixture()});
     if (loaded.type !== 'loaded') throw new Error('Expected project');
     expect(loaded.project.objects).toHaveLength(5);
-    expect(loaded.project.activePlateId).toBeUndefined();
     const output = send({type:'export',id:2,settings:DEFAULT_BRIM,enabled:['object-0','object-5']});
     if (output.type !== 'exported') throw new Error('Expected export');
     expect(output.filename).toBe('multi-rolling-brim.3mf');
     const round = importProject('out.3mf',output.bytes.slice().buffer);
-    expect(round.plates).toHaveLength(4);
+    expect(round.objects).toHaveLength(5);
     expect(round.objects.map(o => o.parts.filter(p => p.name === 'Rolling brim').length)).toEqual([1,0,0,0,1]);
-  });
-
-  it('switches plates from the immutable upload and exports only the active plate', () => {
-    const bytes = nativeFixture();
-    expect(send({type:'load',id:1,name:'multi.3mf',bytes})).toMatchObject({type:'loaded',project:{activePlateId:undefined,format:'orca'}});
-    expect(send({type:'plate',id:2,plateId:'2'})).toMatchObject({type:'loaded',project:{activePlateId:'2',objects:expect.any(Array)}});
-    const first = send({type:'export',id:3,settings:DEFAULT_BRIM,enabled:['object-1']});
-    if (first.type !== 'exported') throw new Error('Expected export');
-    expect(first.filename).toBe('multi-Plate 2-rolling-brim.3mf');
-    expect(importProject('out.3mf',first.bytes.slice().buffer).objects.map(o => o.parts.length)).toEqual([3,2]);
-    send({type:'plate',id:4,plateId:'3'});
-    expect(send({type:'generate',id:5,settings:{...DEFAULT_BRIM,width:8},enabled:['object-4']})).toMatchObject({type:'generated'});
-    expect(send({type:'plate',id:6,plateId:'missing'})).toMatchObject({type:'error'});
-    send({type:'plate',id:7,plateId:'2'});
-    const restored = send({type:'export',id:8,settings:DEFAULT_BRIM,enabled:['object-1']});
-    if (restored.type !== 'exported') throw new Error('Expected export');
-    expect(unzipSync(restored.bytes)).toEqual(unzipSync(first.bytes));
-  });
-
-  it('lets a plate switch supersede an optimization without returning the old result', async () => {
-    vi.useFakeTimers();
-    send({type:'load',id:1,name:'multi.3mf',bytes:nativeFixture()});
-    send({type:'maximize',id:2,settings:DEFAULT_BRIM,enabled:['object-0']});
-    send({type:'plate',id:3,plateId:'2'});
-    await vi.runAllTimersAsync();
-    expect(scope.postMessage.mock.calls.some(([r]) => r.type === 'maximized')).toBe(false);
-    expect(send({type:'generate',id:4,settings:DEFAULT_BRIM,enabled:['object-1']})).toMatchObject({type:'generated',result:{objects:expect.arrayContaining([expect.objectContaining({id:'object-1'})])}});
-  });
-
-  it('uses the selected Prusa 3 bed and its native format after switching away and back', () => {
-    const bytes = new Uint8Array(readFileSync('tests/fixtures/painted-plates-prusa3-alpha12.3mf')).buffer;
-    expect(send({type:'load',id:1,name:'alpha12.3mf',bytes})).toMatchObject({type:'loaded',project:{format:'prusa3',activePlateId:undefined}});
-    const selected = send({type:'plate',id:2,plateId:'3'});
-    if (selected.type !== 'loaded') throw new Error('Expected selected bed');
-    expect(selected.project.suggestedHeight).toBe(0.3);
-    const enabled = selected.project.objects.map(o => o.id);
-    const first = send({type:'export',id:3,settings:{...DEFAULT_BRIM,height:0.3},enabled});
-    if (first.type !== 'exported') throw new Error('Expected native export');
-    expect(first.filename).toMatch(/^alpha12-Bed 3.*rolling-brim\.3mf$/);
-    expect(importProject('export.3mf',first.bytes.slice().buffer)).toMatchObject({format:'prusa3',plates:[{objectCount:3}]});
-    send({type:'plate',id:4,plateId:'1'});
-    send({type:'generate',id:5,settings:{...DEFAULT_BRIM,width:8},enabled:['object-0']});
-    send({type:'plate',id:6,plateId:'3'});
-    const second = send({type:'export',id:7,settings:{...DEFAULT_BRIM,height:0.3},enabled});
-    if (second.type !== 'exported') throw new Error('Expected repeated native export');
-    expect(unzipSync(second.bytes)).toEqual(unzipSync(first.bytes));
   });
 
   it('switches painted instances across previews and exports without leaking brims or changing original parts', () => {

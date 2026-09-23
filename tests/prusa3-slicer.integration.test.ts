@@ -1,15 +1,15 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { importProject, exportProject, selectPlate } from '../src/core/three-mf';
+import { importProject, exportProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
-import { child, xml, serialize } from '../src/core/three-mf-xml';
+import { child, children, matrix, xml, serialize } from '../src/core/three-mf-xml';
 import { boundsOf } from '../src/core/geometry';
 import { sliceMesh } from '../src/core/mesh';
-import { P3_MODEL, P3_PROJECT, P3_PAINT } from './prusa3-fixtures';
+import { P3_MODEL, P3_PROJECT } from './prusa3-fixtures';
 
 const executable = process.env.PRUSA_SLICER3 || resolve('.local/prusa3/PrusaSlicer-3.0.0-alpha12/PrusaSlicer.exe');
 const dir = resolve('.local/prusa3-validation'), dataDir = resolve(dir,'data');
@@ -17,6 +17,8 @@ const path = (name: string) => resolve(dir,name);
 const load = (name: string) => importProject(name,new Uint8Array(readFileSync(name)).buffer);
 function run(...args: string[]) {
   mkdirSync(dir,{recursive:true});
+  const output = args.indexOf('--output');
+  if (output >= 0) rmSync(args[output+1],{force:true}); // An alpha CLI failure can exit 0; stale files must not pass.
   const run = spawnSync(executable,['--datadir',dataDir,...args],{cwd:dir,windowsHide:true,encoding:'utf8',timeout:60000,stdio:'pipe'});
   const log = `${run.stdout ?? ''}${run.stderr ?? ''}`;
   if (run.error || run.status !== 0) throw new Error(`PrusaSlicer failed: ${run.error ?? run.status}\n${log}`);
@@ -31,7 +33,6 @@ describe.skipIf(!existsSync(executable))('PrusaSlicer 3.0 alpha12 integration', 
     run('--export-3mf','--dont-arrange','--no-ensure-on-bed',inputPath,'--output',roundPath);
     const round = load(roundPath), before = JSON.parse(strFromU8(unzipSync(output)[P3_PROJECT]));
     const after = JSON.parse(strFromU8(unzipSync(readFileSync(roundPath))[P3_PROJECT]));
-    expect(round.plates).toEqual(source.plates);
     expect(round.objects).toHaveLength(source.objects.length);
     for (const [i,container] of before.config_containers.entries()) {
       expect(after.config_containers[i].beds).toEqual(container.beds);
@@ -40,7 +41,6 @@ describe.skipIf(!existsSync(executable))('PrusaSlicer 3.0 alpha12 integration', 
       expect(after.config_containers[i].preset.materials).toEqual(container.preset.materials);
     }
     for (const [i,o] of round.objects.entries()) {
-      expect(o.plateId).toBe(source.objects[i].plateId);
       expect(o.parts.filter(p => p.name === 'Rolling brim')).toHaveLength(1);
       const bounds = boundsOf(sliceMesh(o.parts[0].mesh,0.1)), old = boundsOf(sliceMesh(source.objects[i].parts[0].mesh,0.1));
       for (const key of ['minX','minY','maxX','maxY'] as const) expect(bounds[key]).toBeCloseTo(old[key],4);
@@ -49,47 +49,23 @@ describe.skipIf(!existsSync(executable))('PrusaSlicer 3.0 alpha12 integration', 
     }
   },90000);
 
-  it('reloads each selected bed with its own printer, settings, roles, painting and printability', () => {
-    expect(run('--version')).toContain('3.0.0-alpha12');
-    // Creates a separate bundled-preset store; never reads the user profile.
-    run('--query-printer-models','--output',path('printers.json'));
-    const source = load(resolve('tests/fixtures/painted-plates-prusa3-alpha12.3mf'));
-    for (const id of ['1','2','3']) {
-      const p = selectPlate(source,id), result = generateBrims(p,DEFAULT_BRIM,[p.objects[0].id]);
-      const output = exportProject(p,result), inputPath = path(`bed-${id}.3mf`), roundPath = path(`reloaded-${id}.3mf`);
-      writeFileSync(inputPath,output);
-      run('--export-3mf','--dont-arrange','--no-ensure-on-bed',inputPath,'--output',roundPath);
-      const round = load(roundPath), beforeFiles = unzipSync(output), afterFiles = unzipSync(readFileSync(roundPath));
-      const before = JSON.parse(strFromU8(beforeFiles[P3_PROJECT])), after = JSON.parse(strFromU8(afterFiles[P3_PROJECT]));
-      expect(round.plates).toHaveLength(1); expect(round.plates![0].objectCount).toBe(p.plates!.find(b => b.id === id)!.objectCount);
-      expect(round.objects).toHaveLength(p.objects.length);
-      expect(round.objects.flatMap(o => o.parts).filter(p => p.name === 'Rolling brim')).toHaveLength(1);
-      expect(after.config_containers[0].configuration).toEqual(before.config_containers[0].configuration);
-      // The slicer assigns the local hardware ID and may add resolved material
-      // descriptors. Every original profile field and effective setting stays.
-      const hardware = ({config_id:_id,...value}: Record<string,unknown>) => value;
-      expect({...after.config_containers[0].preset,hw_config:hardware(after.config_containers[0].preset.hw_config)})
-        .toMatchObject({...before.config_containers[0].preset,hw_config:hardware(before.config_containers[0].preset.hw_config)});
-      expect(after.config_containers[0].beds[0].custom_gcode).toEqual(before.config_containers[0].beds[0].custom_gcode);
-      const volumeSettings = (data: typeof before) => data.objects.flatMap((o: {volumes: {type:string;volume_settings:unknown}[]}) => o.volumes.map(v => ({type:v.type,settings:v.volume_settings})));
-      expect(volumeSettings(after)).toEqual(volumeSettings(before));
-      const paints = (files: typeof beforeFiles) => JSON.parse(strFromU8(files[P3_PAINT])).map(({id:_id,...p}: Record<string,unknown>) => p);
-      expect(paints(afterFiles)).toEqual(paints(beforeFiles));
-      for (const [i,o] of round.objects.entries()) {
-        expect(o.parts.filter(p => p.name !== 'Rolling brim').map(p => p.kind)).toEqual(p.objects[i].parts.map(p => p.kind));
-        const bounds = boundsOf(sliceMesh(o.parts[0].mesh,0.1)), old = boundsOf(sliceMesh(p.objects[i].parts[0].mesh,0.1));
-        for (const key of ['minX','minY','maxX','maxY'] as const) expect(bounds[key]).toBeCloseTo(old[key],4);
-      }
-    }
-  },120000);
   it.each(['xl','mmu'])('slices physical, blend and gradient brim assignments on %s hardware', kind => {
     const files = unzipSync(readFileSync(`tests/fixtures/multimaterial-${kind}-prusa3-alpha12.3mf`));
     const data = JSON.parse(strFromU8(files[P3_PROJECT])), config = data.config_containers[0].configuration;
     Object.assign(config.printer_settings,{start_gcode:'',end_gcode:'',before_layer_gcode:'',layer_gcode:'G92 E0',binary_gcode:false,use_relative_e_distances:true});
     Object.assign(config.print_settings,{first_layer_height:{value:0.2,is_percent:false},skirts:0,brim_width:0});
     if (config.toolprint_settings.first_layer_height) config.toolprint_settings.first_layer_height = config.toolprint_settings.first_layer_height.map(() => ({value:0.2,is_percent:false}));
-    files[P3_PROJECT] = strToU8(JSON.stringify(data));
-    const p = selectPlate(importProject('multi.3mf',zipSync(files).slice().buffer),'2'), result = generateBrims(p,DEFAULT_BRIM);
+    // Make a one-bed slicing fixture, independently of the app's export path.
+    const bed = data.config_containers[0].beds[1], model = xml(strFromU8(files[P3_MODEL])), build = child(model.documentElement,'build');
+    build.removeChild(child(build,'item')); // Omit the first bed's test box.
+    for (const item of children(build,'item')) {
+      const m = matrix(item.getAttribute('transform')); m.elements[12]-=bed.position_x; m.elements[13]-=bed.position_y;
+      item.setAttribute('transform',m.elements.filter((_,i)=>i%4!==3).join(' '));
+    }
+    for (const object of data.objects) for (const instance of object.instances || []) instance.ord--;
+    data.config_containers[0].beds = [{...bed,position_x:0,position_y:0}];
+    files[P3_MODEL] = serialize(model); files[P3_PROJECT] = strToU8(JSON.stringify(data));
+    const p = importProject('multi.3mf',zipSync(files).slice().buffer), result = generateBrims(p,DEFAULT_BRIM);
     const inputPath = path(`virtual-${kind}.3mf`), gcodePath = path(`virtual-${kind}.gcode`);
     writeFileSync(inputPath,exportProject(p,result));
     const log = run('--export-gcode','--dont-arrange','--no-ensure-on-bed',inputPath,'--output',gcodePath);

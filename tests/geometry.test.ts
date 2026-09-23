@@ -86,9 +86,9 @@ describe('rolling-circle geometry retained from the G-code app', () => {
     expect(selected.objects[0].area).toEqual(result.objects[0].area);
     expect(totalArea(intersectPolygons(selected.objects[0].area,selected.objects[1].footprint))).toBeGreaterThan(0);
   });
-  it('subtracts negative volumes and clips brims to a known bed', () => {
-    const p=project([box(0,0,40,40)]); p.bed=rectangle(0,0,50,50); p.objects[0].parts.push({name:'Cut',kind:'NegativeVolume',mesh:box(10,10)});
+  it('subtracts negative volumes without trimming the outer brim', () => {
+    const p=project([box(0,0,40,40)]); p.objects[0].parts.push({name:'Cut',kind:'NegativeVolume',mesh:box(10,10)});
     const result=generateBrims(p,{...DEFAULT_BRIM,holes:true}); expect(has(result.objects[0].footprint,15,15)).toBe(false);
-    expect(boundsOf(result.objects[0].area).minX).toBeGreaterThanOrEqual(0); expect(result.objects[0].warnings.join(' ')).toContain('clipped');
+    expect(boundsOf(result.objects[0].area).minX).toBeCloseTo(-5.1,4);
   });
 });

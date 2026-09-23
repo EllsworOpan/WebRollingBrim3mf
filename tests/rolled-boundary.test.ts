@@ -118,13 +118,12 @@ describe('brim measured from the rolled boundary', () => {
     expect(generateBrims(p,settings,[]).circleSweep).toEqual([]);
   });
 
-  it('clips the finished connecting band at the bed without adding a brim along the bed edge', () => {
-    const p = paired(); p.bed = rectangle(10,10,130,49);
+  it('keeps the full connecting band for the slicer to place on a bed', () => {
+    const p = paired();
     const result = generateBrims(p,settings), area = combined(result);
     expect(has(area,70,58)).toBe(true);
-    expect(boundsOf(area).maxY).toBe(59);
+    expect(boundsOf(area).maxY).toBeCloseTo(65.1);
     expect(has(area,70,40)).toBe(false);
-    expect(result.objects.some(o => o.warnings.join(' ').includes('clipped'))).toBe(true);
     result.objects.forEach(o => expectClosed(o.mesh));
   });
 

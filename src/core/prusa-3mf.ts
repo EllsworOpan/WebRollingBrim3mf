@@ -2,7 +2,6 @@ import { NS, xml, serialize, children, child, meta, num, matrix, readMesh, check
 import { strFromU8, strToU8, zipSync } from 'fflate';
 import { Matrix4 } from 'three';
 import { compactMesh, transformMesh } from './mesh';
-import { signedArea } from './geometry';
 import { MIN_LAYER_HEIGHT, MAX_LAYER_HEIGHT } from './first-layer';
 import type { BrimResult, Mesh, ModelObject, ModelPart, Project } from './types';
 
@@ -85,19 +84,12 @@ export function importPrusaProject(name: string, files: Record<string, Uint8Arra
   const ini = files['Metadata/Slic3r_PE.config'] ? strFromU8(files['Metadata/Slic3r_PE.config']) : '';
   const setting = (key: string) => ini.match(new RegExp(`^;?\\s*${key}\\s*=\\s*(.+)$`, 'm'))?.[1].trim();
   const height = setting('first_layer_height');
-  const bed = (setting('bed_shape') || '').split(',').filter(Boolean).map(p => {
-    const coords = p.trim().split('x');
-    if (coords.length !== 2 || coords.some(c => !c.trim())) throw new Error('The project has an invalid bed shape.');
-    const [x,y] = coords.map(Number); return { x,y };
-  });
-  if (bed.some(p => !Number.isFinite(p.x) || !Number.isFinite(p.y) || Math.abs(p.x) > 1e6 || Math.abs(p.y) > 1e6) || (bed.length && (bed.length < 3 || Math.abs(signedArea(bed)) < 1e-6))) throw new Error('The project has an invalid bed shape.');
-  if (!bed.length) warnings.push('No print bed is stored in this file; brim edges are not clipped to a bed.');
   if (Number(setting('xy_size_compensation')) !== 0 && setting('xy_size_compensation')) warnings.push('The project applies XY size compensation. The preview shows uncompensated mesh sections; check the final gap after slicing.');
   if (Number(setting('raft_layers')) > 0) throw new Error('Raft projects are not supported. Disable the raft and place the model on the bed first.');
   if (Number(setting('brim_width')) > 0) warnings.push('Native slicer brim is enabled in this project and may add another brim. Turn it off in PrusaSlicer if unwanted.');
   const suggestedHeight = height && Number.isFinite(Number(height)) && Number(height) >= MIN_LAYER_HEIGHT && Number(height) <= MAX_LAYER_HEIGHT ? Number(height) : undefined;
   if (height && !height.endsWith('%') && suggestedHeight === undefined) warnings.push(`The stored first-layer height is outside the supported ${MIN_LAYER_HEIGHT}–${MAX_LAYER_HEIGHT} mm range. Choose the height manually.`);
-  return { name, objects, bed, warnings, source: { files, modelPath }, format: files[CONFIG] ? 'prusa' : 'generic', suggestedHeight };
+  return { name, objects, warnings, source: { files, modelPath }, format: files[CONFIG] ? 'prusa' : 'generic', suggestedHeight };
 }
 
 function addMeta(doc: Doc, parent: El, type: string, key: string, value: string) {

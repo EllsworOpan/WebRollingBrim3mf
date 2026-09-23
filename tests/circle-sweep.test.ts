@@ -32,15 +32,14 @@ describe('full rolling-circle sweep preview', () => {
     expect(has(area,outer+0.05,30)).toBe(false);
     expect(boundsOf(area).maxX).toBeCloseTo(outer,3);
   });
-  it.each([false,true].flatMap(holes=>[false,true].map(pockets=>({holes,pockets}))))('keeps hole/pocket access and the clipped sweep fixed across gaps (holes=$holes, pockets=$pockets)', toggles => {
+  it.each([false,true].flatMap(holes=>[false,true].map(pockets=>({holes,pockets}))))('keeps hole/pocket access and the sweep fixed across gaps (holes=$holes, pockets=$pockets)', toggles => {
     const pocket = subtractPolygons([rectangle(20,20,40,40)],[rectangle(30,30,20,20),rectangle(38,49,4,12)]);
     const hole = subtractPolygons([rectangle(80,20,40,40)],[rectangle(90,30,20,20)]);
     const p = project([extrude([...pocket,...hole],2),box(125,20)]);
-    p.bed = rectangle(15,15,150,60);
     const settings = {...DEFAULT_BRIM,...toggles,gap:0};
     const baseline = generateBrims(p,settings,['object-0']);
     expect(baseline.regions).toEqual({outside:2,holes:1,pockets:1});
-    expect(boundsOf(baseline.circleSweep).minX).toBe(15);
+    expect(boundsOf(baseline.circleSweep).minX).toBe(10);
     expect(has(baseline.circleSweep,32,40)).toBe(toggles.pockets);
     expect(has(baseline.circleSweep,92,40)).toBe(toggles.holes);
     expect(has(baseline.circleSweep,40,56)).toBe(false);
@@ -61,11 +60,11 @@ describe('full rolling-circle sweep preview', () => {
     expect(has(holes.circleSweep,32,40)).toBe(false); expect(has(holes.circleSweep,92,40)).toBe(true);
     expect(has(pockets.circleSweep,40,56)).toBe(false);
   });
-  it('respects object selection and bed edges while ignoring neighbours', () => {
-    const p = project([box(),box(44,20)]); p.bed = rectangle(15,15,70,50);
+  it('respects object selection while ignoring neighbours', () => {
+    const p = project([box(),box(44,20)]);
     const result = generateBrims(p,DEFAULT_BRIM,['object-0']);
-    expect(boundsOf(result.circleSweep).minX).toBe(15);
-    expect(boundsOf(result.circleSweep).minY).toBe(15);
+    expect(boundsOf(result.circleSweep).minX).toBe(10);
+    expect(boundsOf(result.circleSweep).minY).toBe(10);
     expect(has(result.circleSweep,42,30)).toBe(true);
     expect(has(result.circleSweep,70,30)).toBe(false);
     expect(totalArea(intersectPolygons(result.circleSweep,result.objects[1].footprint))).toBeGreaterThan(0);

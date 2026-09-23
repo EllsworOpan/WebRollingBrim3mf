@@ -3,18 +3,17 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { importProject, exportProject, selectPlate } from '../src/core/three-mf';
+import { importProject, exportProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
 import { boundsOf } from '../src/core/geometry';
 import { box, stl } from './fixtures';
 import { nativeFixture } from './native-fixtures';
-import { children, xml } from '../src/core/three-mf-xml';
 
 for (const format of ['bambu','orca'] as const) {
   const executable = process.env[format === 'orca' ? 'ORCA_SLICER' : 'BAMBU_STUDIO'] || resolve(`.local/${format}/${format === 'orca' ? 'orca-slicer' : 'bambu-studio'}.exe`);
   describe.skipIf(!existsSync(executable))(`${format} native slicer integration`, () => {
-    it('retains part overrides, imports a painted multi-plate project, and reopens an extracted plate', () => {
+    it('retains part overrides and reopens the complete painted project', () => {
       mkdirSync('.local',{recursive:true});
       const path = (suffix: string) => resolve(`.local/${format}-integration-${suffix}.3mf`);
       const run = (input: string, output: string) => execFileSync(executable,['--arrange','0','--export-3mf',output,input],{cwd:resolve('.local'),windowsHide:true,timeout:60000,stdio:'pipe'});
@@ -57,27 +56,12 @@ for (const format of ['bambu','orca'] as const) {
       if (format === 'bambu') fixture['3D/3dmodel.model'] = strToU8(strFromU8(fixture['3D/3dmodel.model']).replace('BambuStudio-2.4.2','BambuStudio-02.08.02.61'));
       writeFileSync(path('seed'),zipSync(fixture)); run(path('seed'),path('fixture'));
       const input = readFileSync(path('fixture')), project = importProject('native.3mf',new Uint8Array(input).buffer);
-      expect(project.format).toBe(format); expect(project.plates).toHaveLength(4);
-      const selected = selectPlate(project,'2'), result = generateBrims(selected,DEFAULT_BRIM,[selected.objects[0].id]);
-      const output = exportProject(selected,result); writeFileSync(path('selected'),output); run(path('selected'),path('reopened'));
-      const reopened = importProject('reopened.3mf',new Uint8Array(readFileSync(path('reopened'))).buffer);
-      expect(reopened.plates).toHaveLength(1);
-      expect(reopened.objects).toHaveLength(selected.objects.length);
-      expect(reopened.objects.reduce((n,o) => n+o.parts.filter(p => p.name === 'Rolling brim').length,0)).toBe(1);
-      const after = generateBrims(reopened,DEFAULT_BRIM);
-      expect(boundsOf(after.objects[1]?.footprint || after.objects[0].footprint).minX).toBeCloseTo(boundsOf(result.objects[1]?.footprint || result.objects[0].footprint).minX,3);
-      const exported = unzipSync(output), source = unzipSync(input);
-      for (const [name,bytes] of Object.entries(exported)) if (/3D\/Objects\/.*\.model$/.test(name)) {
-        const before = xml(strFromU8(source[name])), after = xml(strFromU8(bytes));
-        expect(Array.from(after.getElementsByTagName('triangle')).map(t => t.toString())).toEqual(Array.from(before.getElementsByTagName('triangle')).map(t => t.toString()));
-      }
-      const nativeCfg = xml(strFromU8(unzipSync(readFileSync(path('reopened')))['Metadata/model_settings.config']));
-      expect(children(nativeCfg.documentElement,'plate')).toHaveLength(1);
+      expect(project.format).toBe(format);
+      const source = unzipSync(input);
       const whole = exportProject(project,generateBrims(project,DEFAULT_BRIM,[project.objects[0].id,project.objects.at(-1)!.id]));
       writeFileSync(path('whole'),whole); run(path('whole'),path('whole-reopened'));
       const full = importProject('whole-reopened.3mf',new Uint8Array(readFileSync(path('whole-reopened'))).buffer);
-      expect(full.plates).toEqual(project.plates);
-      expect(full.objects.map(o => o.plateId)).toEqual(project.objects.map(o => o.plateId));
+      expect(full.objects).toHaveLength(project.objects.length);
       expect(full.objects.reduce((n,o) => n+o.parts.filter(p => p.name === 'Rolling brim').length,0)).toBe(2);
       full.objects.forEach((o,i) => {
         const b = boundsOf(generateBrims({...full,objects:[{...o,parts:o.parts.filter(p => p.name !== 'Rolling brim')}]},DEFAULT_BRIM).objects[0].footprint);

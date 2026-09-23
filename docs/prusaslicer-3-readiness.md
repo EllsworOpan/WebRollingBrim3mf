@@ -24,8 +24,8 @@ brim in the parent's coordinates and sets zero elephant-foot compensation on
 printable parents and positive model volumes. Other settings remain untouched.
 Nonprintable instances keep their original compensation.
 
-All beds stay at their original origins. Per-object bed outlines supply clipping
-to the existing brim algorithm. The preview shows the whole project, and the
+Bed metadata is copied unchanged without assigning objects to beds or clipping
+brims. All printable objects appear at their stored positions, and the
 download retains every bed and configuration group. Checkboxes control only
 which objects get new brim parts. The original archive remains the checkpoint
 for every preview and export.
@@ -59,9 +59,9 @@ Prusa 3 markers prevent fallback to a generic mesh-only import.
 
 Validation covers the data the app needs to read or modify: valid meshes,
 transforms, known volume roles, resource/volume references, painting volume IDs,
-instance printability, configuration containers and rectangular bed boundaries.
-Objects must fit wholly within one nonoverlapping bed. This is deliberately
-narrower than the slicer's complete collision-based bed assignment.
+instance printability and configuration fields needed for height suggestions and
+unsupported print modes. Bed geometry is not interpreted. Full brims may extend
+off a bed; placement and clearance checks belong in the slicer.
 
 Unfamiliar print/object/volume settings, painting payloads and unrelated archive
 sidecars are preserved. There is no full settings schema or virtual-extruder
@@ -69,7 +69,7 @@ parser. The app is not a validator for every possible source setting.
 
 Unsupported: other version tags, changed object/volume hierarchy, external model
 resources, required 3MF extensions, forward/cyclic references, SLA, vase mode,
-rafts, nonrectangular/overlapping beds, and objects outside/across beds. Additional
+and rafts. Additional
 object/volume structures (for example height ranges or editable text metadata)
 remain rejected until their effect on touched references/settings is understood.
 
@@ -84,9 +84,10 @@ painting, XL multi-tool profiles, MMU slots, blends, gradients, purge matrices a
 wipe towers. See [fixture provenance](../tests/fixtures/README.md).
 
 Tests check whole-project round trips, exact configuration preservation, original
-mesh/painting retention, per-bed clipping, unknown settings/sidecars and exports
-from an unchanged source. The retained core `selectPlate` helper also allows
-focused bed extraction in regression tests; it is not part of the current UI.
+mesh/painting retention, full brims crossing bed edges, unknown settings/sidecars
+and exports from an unchanged source. Single and shared instances cover scales,
+mirrors, rotations and X/Y tilts, with independent decoding of exported geometry
+and native slicer reopening. No plate-selection or extraction path remains.
 
 Set `PRUSA_SLICER3` to alpha12, or place the portable executable at
 `.local/prusa3/PrusaSlicer-3.0.0-alpha12/PrusaSlicer.exe`, then run:

@@ -11,7 +11,7 @@ import { box, project, rectangle } from './fixtures';
 describe('overlapping objects in the footprint preview', () => {
   const result = generateBrims(project([box(),box(44,20)]),DEFAULT_BRIM);
   const paths = (reverse = false, showBrim = true, compare = true, selected: string | null = null) => {
-    const markup = renderToStaticMarkup(<FirstLayerView result={{...result,objects:reverse ? [...result.objects].reverse() : result.objects}} bed={[]} showBrim={showBrim} showUncovered={true} compare={compare} probe={false} fitKey={0} selected={selected}/>);
+    const markup = renderToStaticMarkup(<FirstLayerView result={{...result,objects:reverse ? [...result.objects].reverse() : result.objects}} showBrim={showBrim} showUncovered={true} compare={compare} probe={false} fitKey={0} selected={selected}/>);
     return Array.from(new DOMParser().parseFromString(markup,'text/html').getElementsByTagName('path'));
   };
 
@@ -38,11 +38,10 @@ describe('overlapping objects in the footprint preview', () => {
 
 describe('uncovered footprint highlighting', () => {
   const rings = subtractPolygons([rectangle(20,20,80,80)],[rectangle(30,30,60,60)]);
-  const p = project([extrude(rings,2),box(120,20)]);
-  p.bed = rectangle(110,0,60,60);
+  const p = project([extrude([...subtractPolygons([rectangle(0,0,120,120)],[rectangle(10,10,100,100)]),...rings],2),box(150,20)]);
   const result = generateBrims(p,DEFAULT_BRIM);
   const render = (showUncovered: boolean, showBrim = true) => {
-    const markup = renderToStaticMarkup(<FirstLayerView result={result} bed={[]} showBrim={showBrim} showUncovered={showUncovered} compare={true} probe={false} fitKey={0} selected="object-1"/>);
+    const markup = renderToStaticMarkup(<FirstLayerView result={result} showBrim={showBrim} showUncovered={showUncovered} compare={true} probe={false} fitKey={0} selected="object-1"/>);
     return Array.from(new DOMParser().parseFromString(markup,'text/html').getElementsByTagName('path'));
   };
   it('shades only uncovered material above models while retaining holes, highlighting and comparison outlines', () => {
@@ -65,7 +64,7 @@ describe('uncovered footprint highlighting', () => {
     expect(brimHidden.some(p=>p.getAttribute('fill')==='#ffb454')).toBe(false);
   });
   it('does not hatch unchecked objects', () => {
-    const markup = renderToStaticMarkup(<FirstLayerView result={generateBrims(p,DEFAULT_BRIM,['object-1'])} bed={p.bed} showBrim={true} showUncovered={true} compare={false} probe={false} fitKey={0} selected={null}/>);
+    const markup = renderToStaticMarkup(<FirstLayerView result={generateBrims(p,DEFAULT_BRIM,['object-1'])} showBrim={true} showUncovered={true} compare={false} probe={false} fitKey={0} selected={null}/>);
     expect(markup).not.toContain('aria-label="Uncovered footprints"');
   });
 });

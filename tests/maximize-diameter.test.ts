@@ -17,17 +17,6 @@ const solve = (...args: Parameters<typeof maximizeDiameter>) => {
 };
 
 describe('maximize rolling diameter', () => {
-  it('uses each object’s own bed throughout optimization and verification', () => {
-    const p = project([box(),box(200,20)]);
-    p.objects[0].bed = rectangle(0,0,100,100);
-    p.objects[1].bed = rectangle(180,0,100,100);
-    p.bed = [];
-    expect(solve(p,DEFAULT_BRIM).outcome.status).toBe('found');
-    // No space for a brim on the second plate, despite the empty project bed.
-    p.objects[1].bed = rectangle(200,20,20,20);
-    expect(solve(p,DEFAULT_BRIM).outcome).toEqual({status:'no-solution',uncovered:1});
-  });
-
   it.each([false,true])('respects enclosed holes and leaves inputs unchanged (holes=%s)', holes => {
     const p = project([extrude([...enclosure,island],2)]), settings = {...DEFAULT_BRIM,holes};
     const original = structuredClone({p,settings});
@@ -82,18 +71,11 @@ describe('maximize rolling diameter', () => {
 
   it.each([[-0.2,0.5],[0,5],[1,20]])('verifies the actual brim with gap=%s and width=%s', (gap,width) => {
     const p = project([extrude([...pocket(),island],2)]), settings = {...DEFAULT_BRIM,gap,width};
-    p.bed = rectangle(10,10,100,100);
     const {outcome} = solve(p,settings);
     if (outcome.status !== 'found') throw new Error('Expected a solution');
     const expected = generateBrims(p,outcome.result.settings);
     expect(outcome.result.objects).toEqual(expected.objects);
     expect(outcome.result.objects[0].uncovered).toEqual([]);
-  });
-
-  it('reports no solution when bed clipping removes a footprint’s brim', () => {
-    const p = project([extrude([rectangle(20,20,20,20),rectangle(80,20,20,20)],2)]);
-    p.bed = rectangle(15,15,40,40);
-    expect(solve(p,DEFAULT_BRIM).outcome).toEqual({status:'no-solution',uncovered:1});
   });
 
   it('does not claim success without enabled first-layer footprints', () => {

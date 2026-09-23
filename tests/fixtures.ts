@@ -12,7 +12,7 @@ export function stl(mesh: Mesh, binary = false): ArrayBuffer {
   return buffer;
 }
 export function project(meshes: Mesh[]): Project {
-  return { name: 'test.stl', bed: [], warnings: [], objects: meshes.map((mesh,i) => ({ id:`object-${i}`, name:`Model ${i+1}`, resourceId:String(i+1), buildIndex:i, transform:new Matrix4().toArray(), parts:[{ name:`Body ${i+1}`, kind:'ModelPart', mesh }] })) };
+  return { name: 'test.stl', warnings: [], objects: meshes.map((mesh,i) => ({ id:`object-${i}`, name:`Model ${i+1}`, resourceId:String(i+1), buildIndex:i, transform:new Matrix4().toArray(), parts:[{ name:`Body ${i+1}`, kind:'ModelPart', mesh }] })) };
 }
 export function meshXml(mesh: Mesh): string {
   const v = mesh.vertices, t = mesh.triangles;

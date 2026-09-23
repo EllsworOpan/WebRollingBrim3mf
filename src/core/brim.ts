@@ -1,7 +1,7 @@
 import { boundsOf, classifyRegions, intersectPolygons, offsetPolygons, polygonsOf, subtractPolygons, totalArea, unionPolygons } from './geometry';
 import { extrude, sliceMesh } from './mesh';
 import { sampleHeights, MIN_LAYER_HEIGHT, MAX_LAYER_HEIGHT } from './first-layer';
-import { MAX_DIAMETER, MIN_DIAMETER, type Bounds, type BrimResult, type BrimSettings, type ModelObject, type Polygon, type Project, type Ring, type Rings } from './types';
+import { MAX_DIAMETER, MIN_DIAMETER, type Bounds, type BrimResult, type BrimSettings, type ModelObject, type Polygon, type Project, type Rings } from './types';
 
 export function footprint(object: ModelObject, z: number): Rings {
   const positives = object.parts.filter(p => p.kind === 'ModelPart').flatMap(p => sliceMesh(p.mesh, z));
@@ -25,25 +25,20 @@ export function validateBrimSettings(settings: BrimSettings): void {
 }
 
 /** Shared by preview generation and the diameter search; no sweep or mesh work. */
-export function brimGeometry(shape: Rings, bed: Ring, settings: BrimSettings, enabled = true) {
+export function brimGeometry(shape: Rings, settings: BrimSettings, enabled = true) {
   const regions = classifyRegions(shape, settings.diameter);
-  let area: Rings = [], outline: Rings = [], clipped = false;
+  let area: Rings = [], outline: Rings = [];
   if (enabled && shape.length) {
     const allowed = unionPolygons([...regions.outside, ...(settings.holes ? regions.holes : []), ...(settings.pockets ? regions.pockets : [])]);
     outline = rolledOutline(allowed, boundsOf(shape));
     // Measure the band from the rolled boundary, including its arcs.
     area = subtractPolygons(offsetPolygons(outline, settings.gap + settings.width), offsetPolygons(outline, settings.gap));
-    if (bed.length) {
-      const onBed = intersectPolygons(area, [bed]);
-      clipped = totalArea(area) - totalArea(onBed) > 0.05;
-      area = onBed;
-    }
   }
-  return { area, outline, regions, clipped };
+  return { area, outline, regions };
 }
 
 export function uncoveredFootprints(islands: Polygon[], area: Rings, gap: number): Polygon[] {
-  // Check the actual, bed-clipped brim. Allow the intentional positive gap
+  // Check the actual brim. Allow the intentional positive gap
   // plus 0.02 mm for polygon approximation; zero/negative gaps touch/overlap.
   const reach = offsetPolygons(area, Math.max(0, gap) + 0.02);
   return islands.filter(island => totalArea(intersectPolygons([island.outer,...island.holes],reach)) < 0.0001);
@@ -62,8 +57,7 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
     const shape = footprints[index], notes: string[] = [];
     // Each Objects-panel entry is a separate job. Its own parts/shells share
     // one footprint; neighbours never affect the rolled boundary or brim.
-    const bed = object.bed ?? project.bed;
-    const { area, outline, regions, clipped } = brimGeometry(shape, bed, settings, enabled.includes(object.id));
+    const { area, outline, regions } = brimGeometry(shape, settings, enabled.includes(object.id));
     counts.outside += regions.counts.outside; counts.holes += regions.counts.holes; counts.pockets += regions.counts.pockets;
     const bottom = footprint(object, heights.bottom);
     const top = footprint(object, heights.top);
@@ -74,11 +68,7 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
       // The circle stays against the rolled boundary. Separation shifts only
       // the brim, never this sweep or which passages the circle can enter.
       // Neither band is trimmed against other objects.
-      let sweep = subtractPolygons(offsetPolygons(outline, settings.diameter), outline);
-      if (bed.length) {
-        if (clipped) notes.push('Brim clipped to the project’s print bed.');
-        sweep = intersectPolygons(sweep, [bed]);
-      }
+      const sweep = subtractPolygons(offsetPolygons(outline, settings.diameter), outline);
       sweepAreas.push(...sweep);
       if (!area.length) notes.push('No brim fits the current width and rolling diameter.');
     }

@@ -99,8 +99,8 @@ describe('3MF data preservation and validation', () => {
     expect(p.suggestedHeight).toBeUndefined();
   });
 
-  it.each(['0x0,10x0', '0x0,10x0,20x0', '0x0,10x0,NaNx10', '0x0x1,10x0,10x10'])('rejects unusable stored beds: %s', bed => {
-    expect(() => load(body, item, '<config/>', {'Metadata/Slic3r_PE.config': strToU8(`; bed_shape = ${bed}\n`)})).toThrow(/bed shape/);
+  it.each(['0x0,10x0', '0x0,10x0,20x0', '0x0,10x0,NaNx10', '0x0x1,10x0,10x10'])('preserves opaque bed metadata without using it for geometry: %s', bed => {
+    expect(load(body, item, '<config/>', {'Metadata/Slic3r_PE.config': strToU8(`; bed_shape = ${bed}\n`)}).objects).toHaveLength(1);
   });
 });
 

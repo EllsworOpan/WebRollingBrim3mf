@@ -1,5 +1,5 @@
 export type JsonObject = Record<string, unknown>;
-export const fail = (reason: string): never => { throw new Error(`Unsupported PrusaSlicer 3.0 project: ${reason} Supported format: 3.0.0-alpha12 FFF with rectangular beds.`); };
+export const fail = (reason: string): never => { throw new Error(`Unsupported PrusaSlicer 3.0 project: ${reason} Supported format: 3.0.0-alpha12 FFF.`); };
 export function record(value: unknown, label: string): JsonObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail(`${label} must be an object.`);
   return value as JsonObject;

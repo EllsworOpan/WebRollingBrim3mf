@@ -108,28 +108,6 @@ describe('each imported object is an independent brim job', () => {
     });
   });
 
-  it.each([false,true])('clips each independent brim to a concave bed (clockwise=%s)', clockwise => {
-    const p = project([box(25,25),box(50,50)]);
-    const bed = [{x:25,y:25},{x:90,y:25},{x:90,y:55},{x:55,y:55},{x:55,y:90},{x:25,y:90}];
-    p.bed = clockwise ? [...bed].reverse() : bed;
-    const result = generateBrims(p,settings);
-    for (const [i,object] of p.objects.entries()) {
-      const alone = generateBrims({...p,objects:[object]},settings);
-      expect(result.objects[i]).toEqual(alone.objects[0]);
-      expect(result.objects[i].warnings).toContain('Brim clipped to the project’s print bed.');
-      expect(totalArea(subtractPolygons(result.objects[i].area,[bed]))).toBe(0);
-      expect(totalArea(subtractPolygons(alone.circleSweep,[bed]))).toBe(0);
-      expect(result.objects[i].areaMm2).toBeGreaterThan(0);
-    }
-    const counterclockwise = generateBrims({...p,bed},settings);
-    result.objects.forEach((object,i) => {
-      const other = counterclockwise.objects[i];
-      // Winding can rotate a polygon's starting vertex without changing its area.
-      expect(totalArea(subtractPolygons(object.area,other.area))).toBe(0);
-      expect(totalArea(subtractPolygons(other.area,object.area))).toBe(0);
-    });
-  });
-
   it.each([['object-0'],['object-1'],['object-0','object-1']].map(selected=>({selected})))('retains coincident instances and attaches brims only to $selected', ({selected}) => {
     const p = importProject('coincident.3mf',archive(resource(1,box()),'<item objectid="1"/><item objectid="1"/>'));
     const original = structuredClone(p), result = generateBrims(p,settings,selected);

@@ -24,23 +24,6 @@ describe('first-layer footprints without adjacent brim', () => {
     expect(holes.objects[0].uncovered).toEqual([]);
   });
 
-  it('checks the actual brim after bed clipping, not the sweep or planned outline', () => {
-    const p = project([extrude([rectangle(20,20,20,20),rectangle(80,20,20,20)],2)]);
-    p.bed = rectangle(15,15,40,40);
-    const result = generateBrims(p,DEFAULT_BRIM).objects[0];
-    expect(result.areaMm2).toBeGreaterThan(0);
-    expect(result.uncovered).toHaveLength(1);
-    expect(boundsOf([result.uncovered[0].outer])).toEqual({minX:80,minY:20,maxX:100,maxY:40});
-  });
-
-  it('counts adjacency along part of the boundary without requiring a full surrounding brim', () => {
-    const p = project([box()]); p.bed = rectangle(40,20,10,20);
-    const result = generateBrims(p,DEFAULT_BRIM).objects[0];
-    expect(boundsOf(result.area).minX).toBeGreaterThan(40);
-    expect(result.areaMm2).toBeGreaterThan(0);
-    expect(result.uncovered).toEqual([]);
-  });
-
   it('excludes unchecked objects from coverage even when another object’s brim overlaps them', () => {
     const p = project([box(),box(44,20)]), result = generateBrims(p,DEFAULT_BRIM,['object-1']);
     expect(totalArea(intersectPolygons(result.objects[0].footprint,result.objects[1].area))).toBeGreaterThan(10);
@@ -51,8 +34,7 @@ describe('first-layer footprints without adjacent brim', () => {
   });
 
   it('retains holes in uncovered polygons and does not invent footprints for floating objects', () => {
-    const p = project([extrude(enclosure,2),box(120,20)]);
-    p.bed = rectangle(110,0,60,60);
+    const p = project([extrude([...subtractPolygons([rectangle(0,0,120,120)],[rectangle(10,10,100,100)]),...enclosure],2),box(150,20)]);
     for (let i=2;i<p.objects[1].parts[0].mesh.vertices.length;i+=3) p.objects[1].parts[0].mesh.vertices[i]+=1;
     const result = generateBrims(p,DEFAULT_BRIM);
     expect(result.objects[0].uncovered).toHaveLength(1);

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { importProject, exportProject, selectPlate } from '../src/core/three-mf';
+import { importProject, exportProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
 import { xml, children, child, serialize } from '../src/core/three-mf-xml';
@@ -28,42 +28,33 @@ function paintedFaces(bytes: Uint8Array) {
   });
 }
 describe('PrusaSlicer 3 alpha12 native projects', () => {
-  it('reads three beds with different printers, heights, painting and part roles', () => {
+  it('reads every printable instance and reports differing first-layer heights', () => {
     const p = open(fixture()); expect(p.format).toBe('prusa3');
-    expect(p.plates?.map(p => p.objectCount)).toEqual([1,1,3]);
-    const mini = selectPlate(p,'2'), core = selectPlate(p,'3');
-    expect(Math.max(...mini.bed.map(p => p.x))).toBe(180); expect(Math.max(...core.bed.map(p => p.x))).toBe(250);
-    expect(mini.suggestedHeight).toBe(0.2); expect(core.suggestedHeight).toBe(0.3);
-    expect(core.objects).toHaveLength(2);
-    expect(core.objects[0].parts.map(p => p.kind)).toEqual(['ModelPart','NegativeVolume','ParameterModifier','SupportEnforcer','SupportBlocker']);
-    expect(core.warnings.join(' ')).toContain('Experimental');
+    expect(p.objects).toHaveLength(4); expect(p.suggestedHeight).toBeUndefined();
+    expect(p.objects[0].parts.map(p => p.kind)).toEqual(['ModelPart','NegativeVolume','ParameterModifier','SupportEnforcer','SupportBlocker']);
+    expect(p.warnings.join(' ')).toContain('differing');
   });
-  it.each(['1','2','3'])('exports exactly bed %s with unchanged original geometry and paint', id => {
-    const source = fixture(), p = selectPlate(open(source),id), before = structuredClone(p);
+
+  it('preserves every configuration, original painted corner and nonprintable override', () => {
+    const source = fixture(), p = open(source), before = structuredClone(p);
     const result = generateBrims(p,DEFAULT_BRIM,[p.objects[0].id]), output = exportProject(p,result), round = open(output);
-    expect(round.plates).toHaveLength(1); expect(round.plates![0].objectCount).toBe(p.plates!.find(b => b.id === id)!.objectCount);
     expect(round.objects).toHaveLength(p.objects.length);
     expect(round.objects.flatMap(o => o.parts).filter(p => p.name === 'Rolling brim')).toHaveLength(1);
     for (const [i,object] of round.objects.entries()) expect(object.parts.filter(p => p.name !== 'Rolling brim')).toEqual(p.objects[i].parts);
-    const originals = paintedFaces(source);
-    for (const paint of paintedFaces(output)) expect(originals).toContainEqual(paint);
-    const meta = metadata(output), src = metadata(source), selectedContainer = src.config_containers[id === '3' ? 1 : 0];
-    expect(meta.config_containers).toHaveLength(1);
-    expect(meta.config_containers[0].configuration).toEqual(selectedContainer.configuration);
-    expect(meta.config_containers[0].preset).toEqual(selectedContainer.preset);
-    expect(meta.config_containers[0].beds[0]).toEqual({...selectedContainer.beds[id === '2' ? 1 : 0],position_x:0,position_y:0});
-    if (id === '3') {
-      expect(meta.objects).toHaveLength(3);
-      const nonprintable = meta.objects.find((o: {instances?: unknown[]}) => o.instances?.length);
-      expect(nonprintable.instances[0].printable).toBe(false);
-      expect(nonprintable.object_settings.elefant_foot_compensation).toBe(0.3);
-      expect(nonprintable.volumes[0].volume_settings.elefant_foot_compensation).toBe(0.15);
-      for (const o of meta.objects.filter((o: {instances?: unknown[]}) => !o.instances)) expect(o.volumes[0].volume_settings.elefant_foot_compensation).toBe(0);
-    }
+    for (const paint of paintedFaces(output)) expect(paintedFaces(source)).toContainEqual(paint);
+    const meta = metadata(output);
+    expect(meta.config_containers).toEqual(metadata(source).config_containers);
+    expect(meta.objects).toHaveLength(5);
+    const nonprintable = meta.objects.find((o: {instances?: unknown[]}) => o.instances?.length);
+    expect(nonprintable.instances[0].printable).toBe(false);
+    expect(nonprintable.object_settings.elefant_foot_compensation).toBe(0.3);
+    expect(nonprintable.volumes[0].volume_settings.elefant_foot_compensation).toBe(0.15);
+    for (const o of meta.objects.filter((o: {instances?: unknown[]}) => !o.instances)) expect(o.volumes[0].volume_settings.elefant_foot_compensation).toBe(0);
     expect(unzipSync(exportProject(p,result))).toEqual(unzipSync(output)); expect(p).toEqual(before);
   });
+
   it('keeps mirrored and nonuniformly scaled brim height in world millimetres', () => {
-    const p = selectPlate(open(fixture()),'3');
+    const p = open(fixture());
     for (const height of [0.2,0.3]) {
       const result = generateBrims(p,{...DEFAULT_BRIM,height}), round = open(exportProject(p,result));
       for (const [i,object] of round.objects.entries()) {
@@ -83,20 +74,22 @@ describe('PrusaSlicer 3 alpha12 native projects', () => {
     ['vase', (d:ReturnType<typeof metadata>) => {d.config_containers[0].configuration.print_settings.spiral_vase=true;}],
     ['layer ranges', (d:ReturnType<typeof metadata>) => {d.objects[0].ranges=[];}],
     ['missing painted volume', (_:unknown,f:Record<string,Uint8Array>) => {const p=JSON.parse(strFromU8(f[P3_PAINT]));p[0].id=999999;f[P3_PAINT]=strToU8(JSON.stringify(p));}],
-    ['overlapping beds', (d:ReturnType<typeof metadata>) => {d.config_containers[0].beds[1].position_x=0;}],
-    ['outside objects', (_:unknown,f:Record<string,Uint8Array>) => {const doc=xml(strFromU8(f[P3_MODEL]));child(child(doc.documentElement,'build'),'item').setAttribute('transform','1 0 0 0 1 0 0 0 1 -1000 0 0');f[P3_MODEL]=serialize(doc);}],
     ['additional model resources', (_:unknown,f:Record<string,Uint8Array>) => {f['3D/extra.model']=f[P3_MODEL];}],
     ['unknown mesh element', (_:unknown,f:Record<string,Uint8Array>) => {f[P3_MODEL]=strToU8(strFromU8(f[P3_MODEL]).replace('</triangles>','<future/></triangles>'));}],
     ['forward resource references', (_:unknown,f:Record<string,Uint8Array>) => {const doc=xml(strFromU8(f[P3_MODEL])),resources=child(doc.documentElement,'resources'),first=child(resources,'object');resources.removeChild(first);resources.appendChild(first);f[P3_MODEL]=serialize(doc);}],
   ] as const)('rejects %s without falling back to generic geometry', (_,change) => {
     expect(() => open(altered(change))).toThrow(/Unsupported PrusaSlicer 3\.0 project/);
   });
-  it('allows selecting an empty bed without carrying over printable objects', () => {
-    const p = open(altered(d => {const beds=d.config_containers[0].beds;beds.push({...beds[0],position_x:1000,position_y:1000});}));
-    const empty = selectPlate(p,'3');
-    expect(empty.objects).toEqual([]); expect(empty.warnings.join(' ')).toContain('No printable');
-    expect(selectPlate(empty,'1').objects).toEqual(selectPlate(p,'1').objects);
+  it('does not interpret empty, overlapping or nonrectangular bed metadata', () => {
+    const p = open(altered(d => {
+      const c=d.config_containers[0]; c.beds.push({...c.beds[0]});
+      c.configuration.printer_settings.bed_shape = [[0,0],[5,0],[0,5]];
+    }));
+    expect(p.objects).toHaveLength(4);
+    const output = exportProject(p,generateBrims(p,DEFAULT_BRIM));
+    expect(metadata(output).config_containers).toEqual(JSON.parse(strFromU8(p.source!.files[P3_PROJECT])).config_containers);
   });
+
   it('keeps the source format locked and rejects mesh-only Prusa 3 exports', () => {
     const p = open(fixture()), result = generateBrims(p,DEFAULT_BRIM);
     expect(() => exportProject(p,result,'prusa')).toThrow(/original slicer/);

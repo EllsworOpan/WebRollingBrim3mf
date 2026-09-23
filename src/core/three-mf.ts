@@ -11,12 +11,11 @@ import type { BrimResult, Project, SlicerFormat } from './types';
 
 type Archive = NonNullable<Project['source']> & { document: Doc };
 interface ThreeMfAdapter {
-  read(name: string, archive: Archive, plateId?: string): Project;
+  read(name: string, archive: Archive): Project;
   write(project: Project, result: BrimResult, format: SlicerFormat, document?: Doc): Uint8Array;
 }
 const legacyAdapter: ThreeMfAdapter = {
-  read(name, archive, plateId) {
-    if (plateId !== undefined) throw new Error('This project does not contain selectable plates.');
+  read(name, archive) {
     return importPrusaProject(name, archive.files, archive.modelPath, archive.document);
   },
   write(project, result, format, document) {
@@ -24,17 +23,17 @@ const legacyAdapter: ThreeMfAdapter = {
     return format === 'prusa' ? exportPrusaProject(project, result, document) : exportNativeProject(project, result, format);
   },
 };
-// Dialect-specific metadata stays behind this boundary so the worker, plate
-// picker and brim engine use the same project contract for every slicer.
+// Dialect-specific metadata stays behind this boundary so the worker and brim
+// engine use the same whole-project contract for every slicer.
 const adapters: Record<ThreeMfDialect, ThreeMfAdapter> = {
   generic: legacyAdapter,
   prusa2: legacyAdapter,
   prusa3: {
-    read: (name, archive, plateId) => importPrusa3Project(name,archive.files,archive.modelPath,plateId,archive.document),
+    read: (name, archive) => importPrusa3Project(name,archive.files,archive.modelPath,archive.document),
     write: (project,result,_format,document) => exportPrusa3Project(project,result,document),
   },
   'bambu-orca': {
-    read: (name, archive, plateId) => importNativeProject(name, archive.files, archive.modelPath, plateId, archive.document),
+    read: (name, archive) => importNativeProject(name, archive.files, archive.modelPath, archive.document),
     write: exportNativeProject,
   },
 };
@@ -49,7 +48,7 @@ export function importProject(name: string, bytes: ArrayBuffer): Project {
   if (/\.obj$/i.test(name)) return importObj(name, bytes);
   if (/\.stl$/i.test(name)) {
     const mesh = loadStl(bytes);
-    return { name, objects: [{ id: 'object-0', name: name.replace(/\.stl$/i, ''), resourceId: '1', buildIndex: 0, transform: new Matrix4().toArray(), parts: [{ name, kind: 'ModelPart', mesh }] }], bed: [], warnings: ['STL units are assumed to be millimetres. The model was placed on Z=0; disconnected shells remain one object.'] };
+    return { name, objects: [{ id: 'object-0', name: name.replace(/\.stl$/i, ''), resourceId: '1', buildIndex: 0, transform: new Matrix4().toArray(), parts: [{ name, kind: 'ModelPart', mesh }] }], warnings: ['STL units are assumed to be millimetres. The model was placed on Z=0; disconnected shells remain one object.'] };
   }
   if (!/\.3mf$/i.test(name)) throw new Error('Choose an STL, OBJ or 3MF file.');
   let expanded = 0, entries = 0;
@@ -64,11 +63,6 @@ export function importProject(name: string, bytes: ArrayBuffer): Project {
   const modelPath = safePath(relation.getAttribute('Target') || '');
   const { archive, adapter } = readArchive({ files, modelPath });
   return adapter.read(name, archive);
-}
-export function selectPlate(project: Project, plateId: string): Project {
-  if (!project.source) throw new Error('This project does not contain selectable plates.');
-  const { archive, adapter } = readArchive(project.source);
-  return adapter.read(project.name, archive, plateId);
 }
 export function exportProject(project: Project, result: BrimResult, format: SlicerFormat = project.format && project.format !== 'generic' ? project.format : 'prusa'): Uint8Array {
   const input = project.source ? readArchive(project.source) : undefined;
