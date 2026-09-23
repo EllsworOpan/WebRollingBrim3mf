@@ -30,7 +30,7 @@ export function boundsOf(rings: Rings): Bounds {
   }
   return bounds;
 }
-export function pointInRing(p: Point, ring: Ring): boolean {
+function pointInRing(p: Point, ring: Ring): boolean {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
     const a = ring[i], b = ring[j];
@@ -56,7 +56,7 @@ export const unionPolygons = (rings: Rings): Rings => toMm(merge(toInt(rings)));
 export const offsetPolygons = (rings: Rings, mm: number): Rings => toMm(offset(toInt(rings), mm * SCALE));
 export const subtractPolygons = (a: Rings, b: Rings): Rings => toMm(subtract(toInt(a), toInt(b)));
 
-export interface ReachableRegions { outside: Rings; holes: Rings; pockets: Rings; counts: { outside: number; holes: number; pockets: number } }
+interface ReachableRegions { outside: Rings; holes: Rings; pockets: Rings; counts: { outside: number; holes: number; pockets: number } }
 
 /**
  * Configuration space: a radius-r disk centre must lie outside offset(model, r).

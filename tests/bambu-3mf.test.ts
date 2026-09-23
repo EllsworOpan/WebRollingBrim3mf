@@ -75,6 +75,31 @@ describe('Bambu Studio and OrcaSlicer project adapters', () => {
     expect(strFromU8(files['Metadata/layer_config_ranges.xml'])).toContain('>8<');
   });
 
+  it.each(['unknown_part','constructor','__proto__'])('rejects an unrecognized part role: %s', role => {
+    const input = altered(files => { files['Metadata/model_settings.config'] = strToU8(strFromU8(files['Metadata/model_settings.config']).replace('subtype="normal_part"',`subtype="${role}"`)); });
+    expect(() => open(input)).toThrow(`Unsupported Bambu/Orca part type: ${role}`);
+  });
+
+  it('removes stale caches without deleting similarly named unrelated metadata', () => {
+    const keep = ['Metadata/plate_1_notes.json','Metadata/pattern_1_custom.json','Metadata/slice_info.config.backup','Metadata/bbl_thumbnail.png.backup','Auxiliaries/template.gcode.txt'];
+    const stale = ['Metadata/plate_1.gcode.md5','Metadata/plate_no_light_1.png','Metadata/top_1.png','Metadata/pattern_1_bbox.json','Metadata/custom-preview.bin'];
+    const input = altered(files => {
+      for (const path of [...keep,...stale]) files[path] = strToU8(path);
+      files['Metadata/model_settings.config'] = strToU8(strFromU8(files['Metadata/model_settings.config']).replace('<plate>','<plate><metadata key="thumbnail_file" value="/Metadata/custom-preview.bin"/>'));
+    });
+    const p = open(input), files = unzipSync(exportProject(p,generateBrims(p,DEFAULT_BRIM)));
+    for (const path of keep) expect(files[path]).toEqual(strToU8(path));
+    for (const path of stale) expect(files[path]).toBeUndefined();
+    expect(strFromU8(files['Metadata/model_settings.config'])).not.toContain('thumbnail_file');
+  });
+
+  it.each(['3D/Objects/shared.model','Metadata/project_settings.config'])('rejects a cache reference to required project data: %s', path => {
+    const input = altered(files => { files['Metadata/model_settings.config'] = strToU8(strFromU8(files['Metadata/model_settings.config']).replace('<plate>',`<plate><metadata key="thumbnail_file" value="/${path}"/>`)); });
+    const p = open(input), pristine = structuredClone(p);
+    expect(() => exportProject(p,generateBrims(p,DEFAULT_BRIM))).toThrow(/cache refers to model or project data/);
+    expect(p).toEqual(pristine);
+  });
+
   it('keeps unconfigured original components when adding the first configured brim part', () => {
     const input = altered(files => {
       const doc = xml(strFromU8(files['Metadata/model_settings.config']));

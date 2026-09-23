@@ -5,7 +5,7 @@ import { NS, xml, serialize, children, child, matrix, readMesh, checkIds, type D
 import { configuration, record, list, keys, integer, fail, type JsonObject } from './prusa3-config';
 import type { Project, ModelObject, ModelPart, BrimResult, Mesh } from './types';
 
-export const PRUSA3_VERSION = 'PrusaSlicer-3.0.0-alpha12';
+const PRUSA3_VERSION = 'PrusaSlicer-3.0.0-alpha12';
 const PROJECT = 'Metadata/PrusaSlicer3_project.json', PAINT = 'Metadata/Slic3r_facets_annotation.json';
 const ROLES = ['ModelPart','NegativeVolume','ParameterModifier','SupportEnforcer','SupportBlocker'];
 const remove = (node: El) => node.parentNode?.removeChild(node);
@@ -139,7 +139,10 @@ export function importPrusa3Project(name: string, files: Record<string,Uint8Arra
     return Array.isArray(tool[key]) && tool[key].length ? tool[key].map(value => value ?? print[key]) : [print[key]];
   });
   const heights = effective('first_layer_height').map(value => {
-    const h = record(value,'first-layer height');
+    // A suggestion is optional: preserve unfamiliar values and ask the user
+    // for the height rather than rejecting otherwise usable model geometry.
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    const h = value as JsonObject;
     return h.is_percent === false && typeof h.value === 'number' && h.value >= MIN_LAYER_HEIGHT && h.value <= MAX_LAYER_HEIGHT ? h.value : undefined;
   });
   const suggestedHeight = heights.every(h => h === heights[0]) ? heights[0] : undefined;
@@ -147,7 +150,7 @@ export function importPrusa3Project(name: string, files: Record<string,Uint8Arra
   const instances = a.instances;
   if (effective('brim_width').some(v => Number(v) > 0) || instances.some(i => Number(record(i.cfg.object_settings ?? {},'object settings').brim_width) > 0)) warnings.push('Native slicer brim is enabled. Disable it in the slicer if unwanted.');
   if (effective('xy_size_compensation').some(v => Number(v)) || instances.some(i => Number(record(i.cfg.object_settings ?? {},'object settings').xy_size_compensation))) warnings.push('The project applies XY compensation. Check the separation gap after slicing.');
-  if (a.containers.some(c => { const materials = record(c.preset,'preset').materials; return Array.isArray(materials) && materials.length > 1; })) warnings.push('Material slots and virtual extruders are preserved. New brim parts inherit their parent object’s material settings, not its painted colors.');
+  if (a.containers.some(c => { const materials = (c.preset as JsonObject | undefined)?.materials; return Array.isArray(materials) && materials.length > 1; })) warnings.push('Material slots and virtual extruders are preserved. New brim parts inherit their parent object’s material settings, not its painted colors.');
   if (objects.some(o => o.parts.some(p => p.kind === 'NegativeVolume'))) warnings.push('Negative volumes are applied in the footprint view. The 3D view shows the original positive meshes.');
   return {name,objects,warnings,suggestedHeight,format:'prusa3',source:{files,modelPath}};
 }

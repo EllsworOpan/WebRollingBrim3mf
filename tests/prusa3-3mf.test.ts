@@ -53,6 +53,27 @@ describe('PrusaSlicer 3 alpha12 native projects', () => {
     expect(unzipSync(exportProject(p,result))).toEqual(unzipSync(output)); expect(p).toEqual(before);
   });
 
+  it.each([undefined,null,0.2,'0.2',[],{value:150,is_percent:true},{value:2,is_percent:false},{future_height:0.2}])('preserves unfamiliar height hints and lets the user choose manually: %j', height => {
+    const input = altered(data => {
+      for (const container of data.config_containers) {
+        container.configuration.print_settings.first_layer_height = height;
+        container.configuration.toolprint_settings.first_layer_height = [height];
+      }
+    });
+    const p = open(input);
+    expect(p.suggestedHeight).toBeUndefined();
+    expect(p.warnings.join(' ')).toContain('Choose the first-layer height manually');
+    const output = exportProject(p,generateBrims(p,DEFAULT_BRIM));
+    expect(metadata(output).config_containers).toEqual(metadata(input).config_containers);
+  });
+
+  it.each([undefined,null,'opaque preset reference'])('does not require optional preset hints to process geometry: %j', preset => {
+    const input = altered(data => { for (const container of data.config_containers) container.preset = preset; });
+    const p = open(input), output = exportProject(p,generateBrims(p,DEFAULT_BRIM));
+    expect(p.objects).toHaveLength(4);
+    expect(metadata(output).config_containers).toEqual(metadata(input).config_containers);
+  });
+
   it('keeps mirrored and nonuniformly scaled brim height in world millimetres', () => {
     const p = open(fixture());
     for (const height of [0.2,0.3]) {

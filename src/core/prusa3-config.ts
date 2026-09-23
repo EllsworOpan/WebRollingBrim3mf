@@ -12,7 +12,7 @@ export function keys(value: JsonObject, allowed: string[], label: string) {
   const unknown = Object.keys(value).find(key => !allowed.includes(key));
   if (unknown) fail(`Unrecognized ${label} field: ${unknown}.`);
 }
-export function finite(value: unknown, label: string): number {
+function finite(value: unknown, label: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1e6) fail(`Invalid ${label}.`);
   return value as number;
 }

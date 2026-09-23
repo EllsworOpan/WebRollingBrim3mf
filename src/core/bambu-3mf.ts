@@ -86,8 +86,9 @@ export function importNativeProject(name: string, files: Record<string, Uint8Arr
       if (cfg && children(cfg,'part').length) throw new Error('This Bambu/Orca project uses a legacy combined mesh. Save it again in its slicer before importing.');
       const shape = readMesh(mesh); triangleCount += shape.triangles.length / 3;
       if (triangleCount > 2_000_000) throw new Error('This project exceeds the two-million-triangle browser limit.');
-      const subtype = cfg?.getAttribute('subtype') || 'normal_part', kind = ROLES[subtype];
-      if (!kind) throw new Error(`Unsupported Bambu/Orca part type: ${subtype}`);
+      const subtype = cfg?.getAttribute('subtype') || 'normal_part';
+      if (!Object.hasOwn(ROLES,subtype)) throw new Error(`Unsupported Bambu/Orca part type: ${subtype}`);
+      const kind = ROLES[subtype];
       return [{ name: meta(cfg, 'name') || res.getAttribute('name') || `Part ${id}`, kind, mesh: transformMesh(shape, transform) }];
     }
     const components = children(child(res, 'components'), 'component'), parts = cfg ? children(cfg, 'part') : [];
@@ -208,10 +209,25 @@ export function exportNativeProject(project: Project, result: BrimResult, format
   children(build,'item').forEach(remove); originals.forEach(remove);
   children(a.config.documentElement,'plate').forEach(remove);
   const assemblyNodes = children(a.config.documentElement,'assemble'); assemblyNodes.forEach(remove);
+  const cacheKeys = ['gcode_file','thumbnail_file','thumbnail_no_light_file','top_file','pick_file','pattern_file','pattern_bbox_file'];
+  const referencedCaches = new Set<string>();
   const outputPlates = new Map(plates.map(p => {
     const node = p.node.cloneNode(true) as El;
     children(node, 'model_instance').forEach(remove);
-    children(node, 'metadata').filter(m => ['gcode_file','thumbnail_file','thumbnail_no_light_file','top_file','pick_file','pattern_file','pattern_bbox_file','prediction','weight'].includes(m.getAttribute('key') || '')).forEach(remove);
+    for (const m of children(node,'metadata')) {
+      const key = m.getAttribute('key') || '';
+      if (cacheKeys.includes(key)) {
+        // Some projects name caches explicitly rather than using plate_N paths.
+        // A local slicer filepath is not necessarily an archive entry.
+        let path: string | undefined;
+        try { path = safePath(m.getAttribute('value') || ''); } catch { /* No internal resource at this path. */ }
+        if (path && files[path]) {
+          if (/\.(?:model|config|rels|xml)$/i.test(path)) throw new Error('A slicer cache refers to model or project data. Save a repaired project in the slicer before export.');
+          referencedCaches.add(path);
+        }
+        remove(m);
+      } else if (key === 'prediction' || key === 'weight') remove(m);
+    }
     return [p.node,node];
   }));
   const assemblies = assemblyNodes.flatMap(n => children(n,'assemble_item'));
@@ -271,7 +287,8 @@ export function exportNativeProject(project: Project, result: BrimResult, format
   if (oldIndices.some((index,i) => index !== i+1)) remapObjectMetadata(files,oldIndices);
   // Toolpaths, thumbnails and per-plate slice caches describe the old geometry.
   // Export an editable project which must be sliced again.
-  for (const path of Object.keys(files)) if (/\.(?:gcode|bgcode)(?:\..*)?$|^Metadata\/(?:slice_info\.config|(?:plate|plate_no_light|top|pick|pattern)_\d+[^/]*\.(?:png|jpg|json)|bbl_thumbnail\.png)|^Auxiliaries\/\.thumbnails\//i.test(path)) delete files[path];
+  // Match complete cache names, not similarly named opaque metadata/backups.
+  for (const path of Object.keys(files)) if (referencedCaches.has(path) || /\.(?:gcode|bgcode)(?:\.md5)?$|^Metadata\/(?:slice_info\.config|(?:plate|plate_no_light|top|pick|pattern)_\d+\.(?:png|jpg)|pattern_\d+(?:_bbox)?\.json|bbl_thumbnail\.png)$|^Auxiliaries\/\.thumbnails\//i.test(path)) delete files[path];
   for (const m of children(a.root,'metadata')) if (/^Thumbnail/i.test(m.getAttribute('name') || '')) remove(m);
   files[source.modelPath] = serialize(a.doc);
   // Rebuild model relationships, retaining unrelated valid package resources.
