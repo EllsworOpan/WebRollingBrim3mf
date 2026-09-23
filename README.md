@@ -1,8 +1,14 @@
 # Rolling Brim 3MF
 
-A local browser workbench for adding rolling-brim **mesh parts** to STL, OBJ and 3MF models. Based on the UI and rolling-circle region classifier in the sibling `WebRollingBrim` project. The legacy Python script is not used.
+A browser workbench for adding rolling-brim **mesh parts** to STL, OBJ and 3MF models. Each selected model gets its own aligned brim part and PrusaSlicer overrides in a downloadable 3MF. Built from WebRollingBrim's interface and rolling-circle geometry.
+
+**Files stay in your browser.** Import, preview, brim generation and export run locally on your device. Heavy geometry processing runs in a Web Worker. No backend, account or model upload is required, including on GitHub Pages.
+
+[MIT licensed](LICENSE) · [Deploy to GitHub Pages](#deploy-to-github-pages) · [Workflow](#workflow)
 
 ## Run
+
+Use **Node.js 24** and npm. The version is recorded in `.node-version` and used by the deployment workflow and Docker build.
 
 ```powershell
 npm ci
@@ -13,11 +19,43 @@ Open the local address printed by Vite. For a production build:
 
 ```powershell
 npm run check
+npm run licenses -- --check
 npm run build
-docker compose up --build -d
+npm run preview
 ```
 
-Docker serves the app on port **8081**. The production output in `dist/` can also be served by any static host. No backend, account, or upload service is involved. Geometry, imports and exports run in a Web Worker. The source project is never modified.
+The preview serves the production build at `http://127.0.0.1:4173/`. It is a local verification server; deploy the contents of `dist/` to a static host for public use.
+
+Alternatively, run `docker compose up --build -d` to serve the app on port **8081**. The source model is never modified.
+
+## Deploy to GitHub Pages
+
+The included [deployment workflow](.github/workflows/pages.yml) builds and publishes the site when `main` is pushed, or when started manually from GitHub's Actions tab.
+
+1. Create a GitHub repository and push this project's `main` branch to it. If creating an empty repository for this existing Git history, leave GitHub's README and license initialization options unchecked; both files are already included.
+2. In the repository, open **Settings → Pages → Build and deployment** and set **Source** to **GitHub Actions**.
+3. Open **Actions → Deploy GitHub Pages → Run workflow**, choosing `main`. After this first deployment, pushes to `main` deploy automatically. If the initial push ran before Pages was enabled, rerun that workflow after step 2.
+4. Open the published URL from the deployment result or **Settings → Pages**.
+
+The workflow uses the Pages configuration to select the correct asset prefix: `/repository-name/` for a project site, or `/` for an account site or a configured custom domain. There is no repository name to hard-code in the source. It uses GitHub's automatic token; no personal access token or custom deployment secret is needed. Build checks run before deployment, and only `dist/` is uploaded. Private models, `.local/` diagnostics and `node_modules/` are not published.
+
+For a custom domain, configure it in **Settings → Pages**, complete GitHub's DNS setup, then rerun the workflow so the app is rebuilt for that URL. If you rename the default branch from `main`, update the workflow's push trigger and deploy condition as well.
+
+The setup follows [Vite's GitHub Pages deployment guide](https://vite.dev/guide/static-deploy.html#github-pages) and [GitHub's Pages deployment action](https://github.com/actions/deploy-pages).
+
+### Test a repository subpath locally
+
+Use the same base path for both build and preview. For example, in PowerShell:
+
+```powershell
+$env:BASE_PATH = '/WebRollingBrim3mf/'
+npm run build
+npm run preview
+```
+
+Open `http://127.0.0.1:4173/WebRollingBrim3mf/`. Load the example, switch previews and export a 3MF to exercise the bundled model and worker under the subpath. The footer's license and third-party notice links should also work.
+
+When finished, stop preview with Ctrl+C, run `Remove-Item Env:BASE_PATH`, and rebuild to return to the default `/` path. In a POSIX shell, use `BASE_PATH=/WebRollingBrim3mf/ npm run build` and `BASE_PATH=/WebRollingBrim3mf/ npm run preview` instead.
 
 ## Workflow
 
@@ -89,8 +127,10 @@ STL regressions cover shared vertex indices, touching shells, collapsed and coll
 
 Validation artifacts go to ignored `.local/`, including `two-objects.3mf`, the slicer roundtrip, validation G-code, and `slicer-validation.json`. G-code exists only as a development check; the application accepts STL/OBJ/3MF and exports only 3MF.
 
-Browser verification covers sample loading, hole/pocket toggles, 2D/3D previews, base comparison, multi-object 3MF input, object selection, height changes and export preparation. The Codex in-app browser did not expose a native file-download event. A direct **Save prepared 3MF** link remains available after export; use the local URL in a regular browser if the in-app browser does not save the file.
+Browser verification covers sample loading, hole/pocket toggles, 2D/3D previews, base comparison, multi-object input, object selection, height changes and export preparation. A direct **Save prepared 3MF** link remains available after export if the automatic download does not start.
 
 ## License
 
-MIT, with original application attribution retained from WebRollingBrim. The included test plate is original to that project. Runtime third-party license texts and attribution are generated by `npm run licenses` and served in `public/THIRD_PARTY_NOTICES.txt`.
+Released under the [MIT License](LICENSE), copyright © 2026 EllsworOpan, with the original WebRollingBrim attribution retained. The included test plate is original to that project.
+
+Dependencies retain their own licenses. Run `npm run licenses` after dependency updates to refresh the [hosted MIT license](public/LICENSE.txt) and [third-party notices](public/THIRD_PARTY_NOTICES.txt), then commit those files. Deployment runs `npm run licenses -- --check` to ensure the published notices match the locked dependencies and root license. Both are linked from the app footer.
