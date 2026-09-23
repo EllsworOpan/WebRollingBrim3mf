@@ -10,7 +10,7 @@ export function* maximizeDiameter(project: Project, settings: BrimSettings, enab
   // Slice only once per enabled object. Candidates reuse the same footprints.
   const shapes = project.objects.filter(o => enabled.includes(o.id)).map(o => {
     const shape = footprint(o, z);
-    return { shape, islands: polygonsOf(shape) };
+    return { shape, islands: polygonsOf(shape), bed:o.bed ?? project.bed };
   }).filter(o => o.islands.length);
   if (!shapes.length) return { status: 'no-footprints' };
 
@@ -19,7 +19,7 @@ export function* maximizeDiameter(project: Project, settings: BrimSettings, enab
   const diameterOf = (tick: number) => Number((tick * DIAMETER_STEP).toFixed(2));
   const check = (tick: number) => {
     const candidate = { ...settings, diameter: diameterOf(tick) };
-    const uncovered = shapes.reduce((sum, o) => sum + uncoveredFootprints(o.islands, brimGeometry(o.shape, project.bed, candidate).area, candidate.gap).length, 0);
+    const uncovered = shapes.reduce((sum, o) => sum + uncoveredFootprints(o.islands, brimGeometry(o.shape, o.bed, candidate).area, candidate.gap).length, 0);
     checks++;
     return uncovered;
   };

@@ -78,9 +78,22 @@ describe('model worker lifecycle', () => {
     expect(send({type:'load',id:4,name:'new.stl',bytes:stl(box())})).toMatchObject({type:'loaded'});
   });
 
+  it('loads and exports all plates by default', () => {
+    const loaded = send({type:'load',id:1,name:'multi.3mf',bytes:nativeFixture()});
+    if (loaded.type !== 'loaded') throw new Error('Expected project');
+    expect(loaded.project.objects).toHaveLength(5);
+    expect(loaded.project.activePlateId).toBeUndefined();
+    const output = send({type:'export',id:2,settings:DEFAULT_BRIM,enabled:['object-0','object-5']});
+    if (output.type !== 'exported') throw new Error('Expected export');
+    expect(output.filename).toBe('multi-rolling-brim.3mf');
+    const round = importProject('out.3mf',output.bytes.slice().buffer);
+    expect(round.plates).toHaveLength(4);
+    expect(round.objects.map(o => o.parts.filter(p => p.name === 'Rolling brim').length)).toEqual([1,0,0,0,1]);
+  });
+
   it('switches plates from the immutable upload and exports only the active plate', () => {
     const bytes = nativeFixture();
-    expect(send({type:'load',id:1,name:'multi.3mf',bytes})).toMatchObject({type:'loaded',project:{activePlateId:'1',format:'orca'}});
+    expect(send({type:'load',id:1,name:'multi.3mf',bytes})).toMatchObject({type:'loaded',project:{activePlateId:undefined,format:'orca'}});
     expect(send({type:'plate',id:2,plateId:'2'})).toMatchObject({type:'loaded',project:{activePlateId:'2',objects:expect.any(Array)}});
     const first = send({type:'export',id:3,settings:DEFAULT_BRIM,enabled:['object-1']});
     if (first.type !== 'exported') throw new Error('Expected export');
@@ -107,7 +120,7 @@ describe('model worker lifecycle', () => {
 
   it('uses the selected Prusa 3 bed and its native format after switching away and back', () => {
     const bytes = new Uint8Array(readFileSync('tests/fixtures/painted-plates-prusa3-alpha12.3mf')).buffer;
-    expect(send({type:'load',id:1,name:'alpha12.3mf',bytes})).toMatchObject({type:'loaded',project:{format:'prusa3',activePlateId:'1'}});
+    expect(send({type:'load',id:1,name:'alpha12.3mf',bytes})).toMatchObject({type:'loaded',project:{format:'prusa3',activePlateId:undefined}});
     const selected = send({type:'plate',id:2,plateId:'3'});
     if (selected.type !== 'loaded') throw new Error('Expected selected bed');
     expect(selected.project.suggestedHeight).toBe(0.3);

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { BrimResult, Point, Rings } from '../core/types';
+import type { BrimResult, Point, Rings, Plate } from '../core/types';
 const path = (rings: Rings) => rings.map(r => r.length ? `M${r.map(p => `${p.x},${p.y}`).join('L')}Z` : '').join('');
-interface Props { result: BrimResult; bed: Point[]; showBrim: boolean; showUncovered: boolean; compare: boolean; probe: boolean; fitKey: number; selected: string | null }
-export default function FirstLayerView({ result, bed, showBrim, showUncovered, compare, probe, fitKey, selected }: Props) {
+interface Props { result: BrimResult; bed: Point[]; plates?: Plate[]; showBrim: boolean; showUncovered: boolean; compare: boolean; probe: boolean; fitKey: number; selected: string | null }
+export default function FirstLayerView({ result, bed, plates, showBrim, showUncovered, compare, probe, fitKey, selected }: Props) {
   const svg = useRef<SVGSVGElement>(null), drag = useRef<{ x: number; y: number; box: typeof view } | null>(null);
   const [view, setView] = useState({ x: 0, y: 0, w: 200, h: 200 }), [cursor, setCursor] = useState<Point | null>(null);
   const viewRef = useRef(view); viewRef.current = view;
@@ -39,7 +39,8 @@ export default function FirstLayerView({ result, bed, showBrim, showUncovered, c
     onPointerMove={e => { const rect = e.currentTarget.getBoundingClientRect(); if (drag.current) { const d = drag.current; setView({ ...d.box, x: d.box.x - (e.clientX - d.x) / rect.width * d.box.w, y: d.box.y - (e.clientY - d.y) / rect.height * d.box.h }); } setCursor({ x: view.x + (e.clientX - rect.left) / rect.width * view.w, y: -(view.y + (e.clientY - rect.top) / rect.height * view.h) }); }}>
     <defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M10 0H0V10" fill="none" stroke="#304149" strokeWidth=".12"/></pattern><pattern id="uncovered-hatch" width="1.4" height="1.4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.4" height="1.4" fill="#fc806641"/><path d="M0 0V1.4" stroke="#ff8972" strokeWidth=".35"/></pattern></defs>
     <rect x={view.x} y={view.y} width={view.w} height={view.h} fill="url(#grid)"/>
-    <g transform="scale(1,-1)"><path d={path([bed])} fill="none" stroke="#52616b" strokeWidth=".3"/>
+    <g transform="scale(1,-1)"><path d={path(plates?.some(p => p.bed?.length) ? plates.flatMap(p => p.bed?.length ? [p.bed] : []) : [bed])} fill="none" stroke="#52616b" strokeWidth=".3"/>
+      {plates && plates.length > 1 && plates.filter(p => p.bed?.length).map(p => <text key={p.id} transform="scale(1,-1)" x={Math.min(...p.bed!.map(v => v.x))+2} y={-Math.max(...p.bed!.map(v => v.y))+6} fill="#81969e" fontSize="4">{p.name}</text>)}
       {probe && <path aria-label="Full rolling-circle sweep" d={path(result.circleSweep)} fill="#54d7c0" fillOpacity=".22" fillRule="evenodd"/>}
       {/* Independent brims may overlap other models. Draw all brims first so
           their object order cannot hide a footprint or comparison outline. */}

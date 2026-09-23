@@ -73,6 +73,20 @@ for (const format of ['bambu','orca'] as const) {
       }
       const nativeCfg = xml(strFromU8(unzipSync(readFileSync(path('reopened')))['Metadata/model_settings.config']));
       expect(children(nativeCfg.documentElement,'plate')).toHaveLength(1);
+      const whole = exportProject(project,generateBrims(project,DEFAULT_BRIM,[project.objects[0].id,project.objects.at(-1)!.id]));
+      writeFileSync(path('whole'),whole); run(path('whole'),path('whole-reopened'));
+      const full = importProject('whole-reopened.3mf',new Uint8Array(readFileSync(path('whole-reopened'))).buffer);
+      expect(full.plates).toEqual(project.plates);
+      expect(full.objects.map(o => o.plateId)).toEqual(project.objects.map(o => o.plateId));
+      expect(full.objects.reduce((n,o) => n+o.parts.filter(p => p.name === 'Rolling brim').length,0)).toBe(2);
+      full.objects.forEach((o,i) => {
+        const b = boundsOf(generateBrims({...full,objects:[{...o,parts:o.parts.filter(p => p.name !== 'Rolling brim')}]},DEFAULT_BRIM).objects[0].footprint);
+        const old = boundsOf(generateBrims({...project,objects:[project.objects[i]]},DEFAULT_BRIM).objects[0].footprint);
+        for (const key of ['minX','minY','maxX','maxY'] as const) expect(b[key]).toBeCloseTo(old[key],3);
+      });
+      const wholeFiles = unzipSync(whole);
+      expect(wholeFiles['Metadata/project_settings.config']).toEqual(source['Metadata/project_settings.config']);
+      expect(wholeFiles['Metadata/custom_gcode_per_layer.xml']).toEqual(source['Metadata/custom_gcode_per_layer.xml']);
     },120000);
   });
 }

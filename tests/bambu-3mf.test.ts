@@ -40,14 +40,14 @@ describe('Bambu Studio and OrcaSlicer project adapters', () => {
       expect(selected.objects[0].parts.map(p => p.kind)).toEqual(['ModelPart','NegativeVolume']);
       expect(result.objects[0].area).toEqual(generateBrims(p,DEFAULT_BRIM).objects[0].area);
     }
-    expect(p.activePlateId).toBe('1');
+    expect(p.activePlateId).toBeUndefined();
     expect(selectPlate(p,'4').objects[0].name).toBe('Other plate only');
   });
 
   it('exports one complete plate, preserves paint and settings, and removes unused geometry and slice caches', () => {
     const p = selectPlate(open(nativeFixture()),'2'), before = structuredClone(p);
     const result = generateBrims(p,DEFAULT_BRIM,[p.objects[0].id]), bytes = exportProject(p,result), files = unzipSync(bytes), round = open(bytes);
-    expect(round.plates).toEqual([{id:'1',name:'Plate 2',objectCount:3}]);
+    expect(round.plates).toMatchObject([{id:'1',name:'Plate 2',objectCount:3}]);
     expect(round.objects).toHaveLength(2);
     expect(round.objects.map(o => o.parts.length)).toEqual([3,2]);
     round.objects.forEach((o,i) => expect(o.parts.slice(0,2)).toEqual(p.objects[i].parts));

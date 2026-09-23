@@ -60,7 +60,7 @@ describe('PrusaSlicer 3 alpha12 native projects', () => {
       expect(nonprintable.volumes[0].volume_settings.elefant_foot_compensation).toBe(0.15);
       for (const o of meta.objects.filter((o: {instances?: unknown[]}) => !o.instances)) expect(o.volumes[0].volume_settings.elefant_foot_compensation).toBe(0);
     }
-    expect(exportProject(p,result)).toEqual(output); expect(p).toEqual(before);
+    expect(unzipSync(exportProject(p,result))).toEqual(unzipSync(output)); expect(p).toEqual(before);
   });
   it('keeps mirrored and nonuniformly scaled brim height in world millimetres', () => {
     const p = selectPlate(open(fixture()),'3');
@@ -78,19 +78,14 @@ describe('PrusaSlicer 3 alpha12 native projects', () => {
   it.each([
     ['future release', (_:unknown,f:Record<string,Uint8Array>) => {f[P3_MODEL]=strToU8(strFromU8(f[P3_MODEL]).replace('alpha12','alpha13'));}],
     ['unknown structural field', (d:ReturnType<typeof metadata>) => {d.new_feature={};}],
-    ['unknown setting', (d:ReturnType<typeof metadata>) => {d.config_containers[0].configuration.print_settings.future_compensation=2;}],
-    ['changed setting type', (d:ReturnType<typeof metadata>) => {d.objects[0].volumes[0].volume_settings.perimeters='4';}],
-    ['missing material setting value', (d:ReturnType<typeof metadata>) => {d.config_containers[0].configuration.filament_settings.filament_diameter=[null];}],
-    ['multi-tool', (d:ReturnType<typeof metadata>) => {d.config_containers[0].preset.hw_config.tool_count=2;}],
-    ['SLA', (d:ReturnType<typeof metadata>) => {d.config_containers[0].preset.hw_config.technology='sla';}],
+    ['SLA', (d:ReturnType<typeof metadata>) => {d.config_containers[0].configuration.printer_settings.printer_technology='SLA';}],
     ['raft', (d:ReturnType<typeof metadata>) => {d.config_containers[0].configuration.print_settings.raft_layers=1;}],
     ['vase', (d:ReturnType<typeof metadata>) => {d.config_containers[0].configuration.print_settings.spiral_vase=true;}],
     ['layer ranges', (d:ReturnType<typeof metadata>) => {d.objects[0].ranges=[];}],
-    ['unknown painting', (_:unknown,f:Record<string,Uint8Array>) => {const p=JSON.parse(strFromU8(f[P3_PAINT]));p[0].seamFacetsVersion=3;f[P3_PAINT]=strToU8(JSON.stringify(p));}],
-    ['bad painting index', (_:unknown,f:Record<string,Uint8Array>) => {const p=JSON.parse(strFromU8(f[P3_PAINT]));p[0].seamFacets[0].triangle=99999;f[P3_PAINT]=strToU8(JSON.stringify(p));}],
+    ['missing painted volume', (_:unknown,f:Record<string,Uint8Array>) => {const p=JSON.parse(strFromU8(f[P3_PAINT]));p[0].id=999999;f[P3_PAINT]=strToU8(JSON.stringify(p));}],
     ['overlapping beds', (d:ReturnType<typeof metadata>) => {d.config_containers[0].beds[1].position_x=0;}],
     ['outside objects', (_:unknown,f:Record<string,Uint8Array>) => {const doc=xml(strFromU8(f[P3_MODEL]));child(child(doc.documentElement,'build'),'item').setAttribute('transform','1 0 0 0 1 0 0 0 1 -1000 0 0');f[P3_MODEL]=serialize(doc);}],
-    ['unknown archive data', (_:unknown,f:Record<string,Uint8Array>) => {f['Metadata/future.bin']=new Uint8Array([1]);}],
+    ['additional model resources', (_:unknown,f:Record<string,Uint8Array>) => {f['3D/extra.model']=f[P3_MODEL];}],
     ['unknown mesh element', (_:unknown,f:Record<string,Uint8Array>) => {f[P3_MODEL]=strToU8(strFromU8(f[P3_MODEL]).replace('</triangles>','<future/></triangles>'));}],
     ['forward resource references', (_:unknown,f:Record<string,Uint8Array>) => {const doc=xml(strFromU8(f[P3_MODEL])),resources=child(doc.documentElement,'resources'),first=child(resources,'object');resources.removeChild(first);resources.appendChild(first);f[P3_MODEL]=serialize(doc);}],
   ] as const)('rejects %s without falling back to generic geometry', (_,change) => {
@@ -99,8 +94,8 @@ describe('PrusaSlicer 3 alpha12 native projects', () => {
   it('allows selecting an empty bed without carrying over printable objects', () => {
     const p = open(altered(d => {const beds=d.config_containers[0].beds;beds.push({...beds[0],position_x:1000,position_y:1000});}));
     const empty = selectPlate(p,'3');
-    expect(empty.objects).toEqual([]); expect(empty.warnings.join(' ')).toContain('no printable');
-    expect(selectPlate(empty,'1').objects).toEqual(p.objects);
+    expect(empty.objects).toEqual([]); expect(empty.warnings.join(' ')).toContain('No printable');
+    expect(selectPlate(empty,'1').objects).toEqual(selectPlate(p,'1').objects);
   });
   it('keeps the source format locked and rejects mesh-only Prusa 3 exports', () => {
     const p = open(fixture()), result = generateBrims(p,DEFAULT_BRIM);

@@ -1,143 +1,110 @@
 # PrusaSlicer 3 project compatibility
 
-Status: **experimental native import and selected-bed export for 3.0.0-alpha12**.
-Baseline: `version_3.0.0-alpha12`, released September 21, 2026; verified September 23.
-Other 3.x versions are detected and rejected until explicitly validated.
+Experimental native import and **whole-project export** for `3.0.0-alpha12`,
+released September 21, 2026; verified September 23. Other 3.x versions are
+detected and rejected until validated.
 
-## Format differences
+## Format and preservation
 
-Prusa 3 retains the ZIP package and core 3MF meshes/components/build placements.
-The meaningful changes are in the project metadata around those meshes:
+Prusa 3 keeps ZIP packaging and core 3MF geometry. Its main differences are the
+metadata and object hierarchy:
 
 | Concern | Prusa 2.x | Prusa 3.0 alpha12 |
 |---|---|---|
-| Part roles and overrides | `Slic3r_PE_model.config`, XML volume triangle ranges | `PrusaSlicer3_project.json`, object and volume resource IDs, typed overrides |
-| Configuration | `Slic3r_PE.config`, one legacy profile | `config_containers` with independent configurations, presets and beds |
-| Bed placement | No selectable-bed interpretation in this app | Explicit XY origins; the slicer determines object membership spatially |
-| Painting | Attributes on original triangle corners | `Slic3r_facets_annotation.json`, keyed by volume resource ID and triangle index; MMU paint also appears in core triangles |
-| Instance printability | Legacy build attributes | JSON instance records use zero-based global build-item `ord` |
-| Per-tool settings | Legacy strings/scalars | Typed JSON values, with nullable per-tool overrides of print settings |
+| Part roles/overrides | XML volume triangle ranges | JSON object and volume resource IDs |
+| Configuration | One legacy profile | Configuration containers with presets and beds |
+| Bed placement | Existing project-wide workflow | Explicit XY origins; spatial object membership |
+| Painting | Attributes on original triangle corners | Volume-ID annotations plus core triangle attributes |
+| Instance printability | Legacy build attributes | JSON records with global build-item `ord` |
+| Tools/materials | Legacy settings | Hardware/material descriptors and optional virtual-extruder recipes |
 
-The model hierarchy is mesh resource → volume wrapper → parent object → build
-instance. Export preserves the original mesh resources and their triangle order,
-clones wrappers/parents per instance, and remaps metadata and painting IDs.
-New brim meshes remain separate. Referenced resources precede their users, as
-required by core 3MF and alpha12's loader.
+The hierarchy is mesh → volume wrapper → parent object → build instance.
+Original meshes and ordered triangle corners remain unchanged. Export appends a
+brim in the parent's coordinates and sets zero elephant-foot compensation on
+printable parents and positive model volumes. Other settings remain untouched.
+Nonprintable instances keep their original compensation.
 
-`project.version` is an incrementing save revision, **not** a schema identifier.
-Compatibility checks use the exact Application value `PrusaSlicer-3.0.0-alpha12`
-plus structural validation. Changing the Application tag alone is not conversion.
+All beds stay at their original origins. Per-object bed outlines supply clipping
+to the existing brim algorithm. The preview shows the whole project, and the
+download retains every bed and configuration group. Checkboxes control only
+which objects get new brim parts. The original archive remains the checkpoint
+for every preview and export.
 
-Sources: [3.0 announcement](https://blog.prusa3d.com/prusaslicer-3-0-preview-built-for-the-future-of-3d-printing_137672/),
-[alpha12 release](https://github.com/prusa3d/PrusaSlicer/releases/tag/version_3.0.0-alpha12),
-[project serializer](https://github.com/prusa3d/PrusaSlicer/blob/version_3.0.0-alpha12/src/slic3r-shared/src/Slic3r/Biz/Format/3mf/PrusaFile.cpp),
-[core model serializer](https://github.com/prusa3d/PrusaSlicer/blob/version_3.0.0-alpha12/src/slic3r-shared/src/Slic3r/Biz/Format/3mf/Model3mf.cpp),
-[bed assignment](https://github.com/prusa3d/PrusaSlicer/blob/version_3.0.0-alpha12/src/slic3r-shared/src/Slic3r/Biz/Scene/BedTracking.cpp),
-[typed configuration](https://github.com/prusa3d/PrusaSlicer/blob/version_3.0.0-alpha12/src/slic3r-shared/src/Slic3r/Biz/Config/ConfigJson.cpp).
+Original IDs are retained for the first instance of a parent. Repeated instances
+receive separate wrappers when exporting independent brims; volume IDs,
+painting references and printability ordinals follow those wrappers. Mesh data
+is shared. New resources precede references to them, as required by alpha12.
+Stale thumbnails are removed. Unrelated archive entries are copied.
 
-## Supported subset
+## Tools, materials and virtual extruders
 
-- Native alpha12 projects with single-tool, single-material FFF configurations.
-- Multiple nonoverlapping rectangular beds, including different printer profiles
-  and first-layer heights across configuration groups.
-- Objects wholly contained in exactly one bed. The selected bed's origin is
-  subtracted from placements without arranging, rotating or grounding objects.
-- Repeated, scaled, rotated, mirrored and nonprintable instances.
-- Positive parts, negative volumes, parameter modifiers, support enforcers and
-  support blockers, with recognized object and volume overrides.
-- Color, support, seam and fuzzy-skin painting using known annotation versions.
-  Painting is retained on its original ordered triangle corners.
-- Selected-bed custom layer G-code, full effective configuration and opaque
-  preset descriptors. Preset feature dictionaries are vendor-defined data;
-  they are preserved without interpreting their keys.
+Multiple nozzles, MMU slots, material assignments, purge matrices, wipe towers,
+bed custom G-code and virtual-extruder definitions are opaque preserved data.
+The app does not renumber material slots, rebuild profiles or interpret blend
+and gradient recipes. A new brim inherits its parent's material assignment;
+existing painted colors stay on the original model rather than being projected
+onto the brim. XL and MMU fixtures exercise these cases.
 
-The plate picker uses a stable flattened bed order and identifies each bed's
-printer. Each import/selection/export starts from the unchanged upload. Export
-contains only the selected bed and all its instances, including unchecked and
-nonprintable ones. Checkboxes choose which printable instances receive brims.
-Bed controls are shared; there is no combined multi-bed edited export.
+First-layer height is suggested only when the stored bed/tool values agree and
+are supported absolute heights. Otherwise the app asks the user to match the
+height manually. It does not alter print profiles. Wipe towers and painting are
+not rendered, and wipe-tower clearance is left to inspection in the slicer.
 
-Export retains the selected configuration group and removes other beds, unused
-resources and the stale thumbnail. It applies native typed settings to new brim
-volumes. Elephant-foot compensation is set to zero on printable parents and
-positive model volumes (whose overrides otherwise take precedence). Nonprintable
-instances retain their compensation. The global profile is unchanged.
+## Compatibility boundary
 
-Prusa 2.9 also has multiple beds, but this app does not currently offer plate
-selection for Prusa 2.x projects. Prusa 3 does not use Bambu's regular plate grid.
-Our wholly-contained-object rule is deliberately narrower than Prusa's full
-collision-based bed assignment and never guesses the nearest bed.
+Detection requires the exact Application tag `PrusaSlicer-3.0.0-alpha12` plus
+compatible geometry and reference structures. `project.version` is a save
+revision, not a schema version. Changing the Application tag is not conversion.
+Prusa 3 markers prevent fallback to a generic mesh-only import.
 
-## Rejection boundary
+Validation covers the data the app needs to read or modify: valid meshes,
+transforms, known volume roles, resource/volume references, painting volume IDs,
+instance printability, configuration containers and rectangular bed boundaries.
+Objects must fit wholly within one nonoverlapping bed. This is deliberately
+narrower than the slicer's complete collision-based bed assignment.
 
-Prusa 3 project/painting markers take precedence over legacy/Bambu metadata. An
-Application value identifying PrusaSlicer 3 or newer also prevents generic
-fallback. Unsupported inputs fail before brim generation, with a reason.
+Unfamiliar print/object/volume settings, painting payloads and unrelated archive
+sidecars are preserved. There is no full settings schema or virtual-extruder
+parser. The app is not a validator for every possible source setting.
 
-The adapter rejects other version tags, missing or changed structural data,
-unknown configuration keys/types/enums, unknown XML elements/attributes, additional
-archive entries, external model resources/3MF extensions, invalid references,
-forward/cyclic components, unsupported painting versions or invalid facet indices.
+Unsupported: other version tags, changed object/volume hierarchy, external model
+resources, required 3MF extensions, forward/cyclic references, SLA, vase mode,
+rafts, nonrectangular/overlapping beds, and objects outside/across beds. Additional
+object/volume structures (for example height ranges or editable text metadata)
+remain rejected until their effect on touched references/settings is understood.
 
-Currently unsupported features include SLA, multiple tools/materials, virtual
-extruders, wipe towers, vase mode, rafts, nonrectangular or overlapping beds,
-objects outside/across beds, variable layer-height profiles, height ranges, cut
-information and editable text/embossing metadata. Such a feature anywhere in the
-project rejects the project, even if another bed would otherwise be usable.
-
-These checks bound the supported alpha format; they cannot predict a semantic
-change made without a version or structure change. A future release requires new
-native fixtures and integration validation before widening the version gate.
-Native Prusa 3 output requires native Prusa 3 input. The generic mesh workflow's
-Prusa output remains 2.x; cross-slicer profile conversion is not provided.
-
-## Code and schema provenance
-
-`three-mf.ts` validates archive boundaries and routes import, selection and
-export through explicit dialect adapters. `prusa-3mf.ts` contains the existing
-2.x/generic implementation, `bambu-3mf.ts` the Bambu/Orca implementation, and
-`prusa3-3mf.ts` the alpha12 implementation. The worker and brim engine use the same
-selected-plate project contract. No rolling-circle or geometry algorithm changed.
-
-`prusa3-config.ts` validates alpha12's typed settings against
-`prusa3-schema.json`. The latter contains setting names, types, enums, override
-scopes and nullability extracted from the official executable's schema; it does
-not contain slicer implementation code, configuration values or user profiles.
-To regenerate with that exact executable and an isolated data directory:
-
-```powershell
-& $env:PRUSA_SLICER3 --datadir .local/prusa3-schema-data --export-config-schema .local/prusa3-schema.json
-node scripts/update-prusa3-schema.mjs .local/prusa3-schema.json
-```
-
-Do not regenerate from another release and broaden support without reviewing the
-format, updating native fixtures and passing the tests below.
+Native Prusa 3 output requires supported native input. Generic mesh output uses
+the existing Prusa 2.x, Bambu Studio or OrcaSlicer adapters.
 
 ## Validation
 
-Committed fixtures were saved by the official alpha12 executable. They cover
-three beds, MINI and CORE One profiles, all five volume roles, painting, shared
-meshes, mirrored/nonuniform instances and printability. See
-[fixture provenance](../tests/fixtures/README.md).
+Committed native fixtures cover MINI and CORE One beds with different heights,
+all five volume roles, shared meshes, scaled/mirrored/nonprintable instances,
+painting, XL multi-tool profiles, MMU slots, blends, gradients, purge matrices and
+wipe towers. See [fixture provenance](../tests/fixtures/README.md).
 
-Unit tests verify bed/profile selection, exact original geometry and ordered
-painted corners, complete selected-bed exports, settings preservation, correct
-brim dimensions, repeated exports from an unchanged source and explicit rejection
-of future/unsupported features. Worker tests verify selected-bed format/filename
-and restoring the same export after switching beds.
+Tests check whole-project round trips, exact configuration preservation, original
+mesh/painting retention, per-bed clipping, unknown settings/sidecars and exports
+from an unchanged source. The retained core `selectPlate` helper also allows
+focused bed extraction in regression tests; it is not part of the current UI.
 
-Set `PRUSA_SLICER3` to the alpha12 executable, or use the portable Windows path
+Set `PRUSA_SLICER3` to alpha12, or place the portable executable at
 `.local/prusa3/PrusaSlicer-3.0.0-alpha12/PrusaSlicer.exe`, then run:
 
 ```powershell
 npm run test -- tests/prusa3-slicer.integration.test.ts
 ```
 
-These tests use an isolated `.local/prusa3-validation/data` profile store. They
-reopen each bed's exported project in alpha12 and compare configuration, profile
-fields, roles, volume settings, painting, placement and printability. The slicer
-can assign a local hardware ID and add resolved material descriptors on save;
-those changes do not alter effective configuration. Slicing checks use scaled,
-mirrored input at 0.2 and 0.3 mm and inspect actual G-code extrusion, requiring all
-identified brim paths to be first-layer perimeters. Without the executable,
-native integration tests are explicitly skipped; fixture tests still run.
+Integration tests use their own `.local/prusa3-validation/data` profile store.
+They reopen whole projects and compare beds, configuration, material recipes,
+roles, settings and placement. Additional tests inspect actual first-layer brim
+extrusion at different heights and with physical/virtual material assignments.
+Without the executable, native tests are explicitly skipped; fixture tests run.
+
+## References
+
+- [Alpha12 release](https://github.com/prusa3d/PrusaSlicer/releases/tag/version_3.0.0-alpha12)
+- [Project serializer](https://github.com/prusa3d/PrusaSlicer/blob/version_3.0.0-alpha12/src/slic3r-shared/src/Slic3r/Biz/Format/3mf/PrusaFile.cpp)
+- [Core model serializer](https://github.com/prusa3d/PrusaSlicer/blob/version_3.0.0-alpha12/src/slic3r-shared/src/Slic3r/Biz/Format/3mf/Model3mf.cpp)
+- [Bed assignment](https://github.com/prusa3d/PrusaSlicer/blob/version_3.0.0-alpha12/src/slic3r-shared/src/Slic3r/Biz/Scene/BedTracking.cpp)
+- [Virtual-extruder serialization](https://github.com/prusa3d/PrusaSlicer/blob/version_3.0.0-alpha12/src/slic3r-shared/src/Slic3r/Biz/Format/VirtualExtruder.cpp)

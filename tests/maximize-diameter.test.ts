@@ -17,6 +17,17 @@ const solve = (...args: Parameters<typeof maximizeDiameter>) => {
 };
 
 describe('maximize rolling diameter', () => {
+  it('uses each object’s own bed throughout optimization and verification', () => {
+    const p = project([box(),box(200,20)]);
+    p.objects[0].bed = rectangle(0,0,100,100);
+    p.objects[1].bed = rectangle(180,0,100,100);
+    p.bed = [];
+    expect(solve(p,DEFAULT_BRIM).outcome.status).toBe('found');
+    // No space for a brim on the second plate, despite the empty project bed.
+    p.objects[1].bed = rectangle(200,20,20,20);
+    expect(solve(p,DEFAULT_BRIM).outcome).toEqual({status:'no-solution',uncovered:1});
+  });
+
   it.each([false,true])('respects enclosed holes and leaves inputs unchanged (holes=%s)', holes => {
     const p = project([extrude([...enclosure,island],2)]), settings = {...DEFAULT_BRIM,holes};
     const original = structuredClone({p,settings});

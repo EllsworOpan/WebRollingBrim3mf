@@ -5,10 +5,10 @@ export interface Polygon { outer: Ring; holes: Rings }
 export interface Bounds { minX: number; minY: number; maxX: number; maxY: number }
 export interface Mesh { vertices: number[]; triangles: number[] }
 export interface ModelPart { name: string; kind: string; mesh: Mesh }
-export interface ModelObject { id: string; name: string; parts: ModelPart[]; resourceId: string; buildIndex: number; transform: number[] }
+export interface ModelObject { id: string; name: string; parts: ModelPart[]; resourceId: string; buildIndex: number; transform: number[]; bed?: Ring; plateId?: string }
 export type SlicerFormat = 'prusa' | 'prusa3' | 'bambu' | 'orca';
 export const SLICER_NAMES: Record<SlicerFormat, string> = { prusa: 'PrusaSlicer 2.x', prusa3: 'PrusaSlicer 3.0 alpha12', bambu: 'Bambu Studio', orca: 'OrcaSlicer' };
-export interface Plate { id: string; name: string; objectCount: number }
+export interface Plate { id: string; name: string; objectCount: number; bed?: Ring }
 export interface Project {
   name: string; objects: ModelObject[]; warnings: string[]; bed: Ring;
   source?: { files: Record<string, Uint8Array>; modelPath: string };

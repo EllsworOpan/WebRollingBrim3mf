@@ -110,8 +110,8 @@ function nativeArchive(files: Record<string, Uint8Array>, modelPath: string, mod
 
 export function importNativeProject(name: string, files: Record<string, Uint8Array>, modelPath: string, plateId?: string, modelDocument?: Doc): Project {
   const a = nativeArchive(files, modelPath, modelDocument);
-  const active = plateId ? a.plates.find(p => p.id === plateId) : a.plates.find(p => p.instances.some(i => !['0','false'].includes(i.item.getAttribute('printable') || ''))) || a.plates[0];
-  if (!active) throw new Error('The requested plate does not exist.');
+  const active = plateId ? a.plates.find(p => p.id === plateId) : undefined;
+  if (plateId && !active) throw new Error('The requested plate does not exist.');
   const warnings: string[] = [];
   let triangleCount = 0;
   const partsFor = (path: string, id: string, transform: Matrix4, cfg?: El, seen = new Set<string>()): ModelPart[] => {
@@ -121,7 +121,7 @@ export function importNativeProject(name: string, files: Record<string, Uint8Arr
     if (mesh) {
       if (cfg && children(cfg,'part').length) throw new Error('This Bambu/Orca project uses a legacy combined mesh. Save it again in its slicer before importing.');
       const shape = readMesh(mesh); triangleCount += shape.triangles.length / 3;
-      if (triangleCount > 2_000_000) throw new Error('This plate exceeds the two-million-triangle browser limit.');
+      if (triangleCount > 2_000_000) throw new Error('This project exceeds the two-million-triangle browser limit.');
       const subtype = cfg?.getAttribute('subtype') || 'normal_part', kind = ROLES[subtype];
       if (!kind) throw new Error(`Unsupported Bambu/Orca part type: ${subtype}`);
       return [{ name: meta(cfg, 'name') || res.getAttribute('name') || `Part ${id}`, kind, mesh: transformMesh(shape, transform) }];
@@ -136,16 +136,18 @@ export function importNativeProject(name: string, files: Record<string, Uint8Arr
     });
   };
   const objects: ModelObject[] = [];
-  for (const instance of active.instances) {
+  for (const instance of active ? active.instances : a.instances) {
     if (['0','false'].includes(instance.item.getAttribute('printable') || '')) continue;
+    const plate = active || a.plates.find(p => p.instances.includes(instance));
     const cfg = a.configs.find(c => c.getAttribute('id') === instance.id);
-    const transform = new Matrix4().makeTranslation(-active.origin.x, -active.origin.y, 0).multiply(matrix(instance.item.getAttribute('transform')));
+    const transform = new Matrix4().makeTranslation(active ? -active.origin.x : 0, active ? -active.origin.y : 0, 0).multiply(matrix(instance.item.getAttribute('transform')));
     const parts = partsFor(instance.path, instance.id, transform, cfg);
-    if (parts.some(p => p.kind === 'ModelPart')) objects.push({ id:`object-${instance.index}`, resourceId:instance.id, buildIndex:instance.index, transform:transform.toArray(), name:meta(cfg, 'name') || `Object ${instance.index+1}`, parts });
+    if (parts.some(p => p.kind === 'ModelPart')) objects.push({ id:`object-${instance.index}`, resourceId:instance.id, buildIndex:instance.index, transform:transform.toArray(), name:meta(cfg, 'name') || `Object ${instance.index+1}`, parts, ...(!active ? {plateId:plate?.id,bed:plate ? a.bed.map(p => ({x:p.x+plate.origin.x,y:p.y+plate.origin.y})) : []} : {}) });
+    if (!plate) warnings.push('Objects outside the assigned plates are included without bed clipping. Check their placement in the slicer.');
     if (Number(meta(cfg, 'raft_layers') || scalar(a.profile.raft_layers)) > 0) throw new Error('Raft projects are not supported. Disable the raft on this plate first.');
     if (Number(meta(cfg, 'brim_width')) > 0) warnings.push('Native slicer brim is enabled on an object. Disable it in the slicer if unwanted.');
   }
-  if (!objects.length) warnings.push('This plate has no printable model objects. Choose another plate.');
+  if (!objects.length) warnings.push('No printable model objects were found.');
   if (!a.bed.length) warnings.push('No print bed is stored in this file; brim edges are not clipped to a bed.');
   if (objects.some(o => o.parts.some(p => p.kind === 'NegativeVolume'))) warnings.push('Negative volumes are applied in the footprint view. The 3D view shows the original positive meshes.');
   if (Number(scalar(a.profile.brim_width)) > 0 && scalar(a.profile.brim_type) !== 'no_brim') warnings.push('Native slicer brim is enabled in this project and may add another brim. Turn it off in the slicer if unwanted.');
@@ -154,7 +156,7 @@ export function importNativeProject(name: string, files: Record<string, Uint8Arr
   const height = scalar(a.profile.initial_layer_print_height);
   const suggestedHeight = height && Number.isFinite(Number(height)) && Number(height) >= MIN_LAYER_HEIGHT && Number(height) <= MAX_LAYER_HEIGHT ? Number(height) : undefined;
   if (height && suggestedHeight === undefined) warnings.push('The stored first-layer height is outside the supported range. Choose the height manually.');
-  return { name, objects, bed:a.bed, warnings:[...new Set(warnings)], source:{files,modelPath}, format:a.format, suggestedHeight, plates:a.plates.map(p => ({id:p.id,name:p.name,objectCount:p.instances.length})), activePlateId:active.id };
+  return { name, objects:objects.sort((a,b) => a.buildIndex-b.buildIndex), bed:active || a.plates.length === 1 ? a.bed : [], warnings:[...new Set(warnings)], source:{files,modelPath}, format:a.format, suggestedHeight, plates:a.plates.map(p => ({id:p.id,name:p.name,objectCount:p.instances.length,...(!active ? {bed:a.bed.map(v => ({x:v.x+p.origin.x,y:v.y+p.origin.y}))} : {})})), activePlateId:active?.id };
 }
 
 function addMesh(doc: Doc, resources: El, id: string, mesh: Mesh): El {
@@ -220,8 +222,9 @@ export function exportNativeProject(project: Project, result: BrimResult, format
   const native = project.format === 'bambu' || project.format === 'orca';
   const source = native ? project.source! : freshArchive(project, format);
   const files = {...source.files}, a = nativeArchive(files, source.modelPath, native ? modelDocument : undefined);
-  const plate = a.plates.find(p => p.id === (native ? project.activePlateId : '1'));
-  if (!plate) throw new Error('Select a plate before exporting.');
+  const plate = native && project.activePlateId ? a.plates.find(p => p.id === project.activePlateId) : undefined;
+  if (project.activePlateId && !plate) throw new Error('The requested plate does not exist.');
+  const plates = plate ? [plate] : a.plates, instances = plate ? plate.instances : a.instances;
   // New assembly-tree formats carry additional model references. Do not silently
   // produce an inconsistent tree when extracting instances into a separate project.
   if (Object.keys(files).some(p => /Metadata\/assembly_(tree|model|step)\.json$/i.test(p))) throw new Error('Assembly-tree projects need to be saved as a regular plate project before export.');
@@ -236,7 +239,8 @@ export function exportNativeProject(project: Project, result: BrimResult, format
     const res = a.resource(path,id); visited.add(key);
     for (const container of children(res,'components')) for (const c of children(container,'component')) { const ref = a.reference(c,path); resolve(ref.path,ref.id,new Set(ancestors).add(key)); }
   };
-  plate.instances.forEach(i => resolve(i.path,i.id));
+  instances.forEach(i => resolve(i.path,i.id));
+  const originalParents = new Map(instances.map(i => [`${i.path}#${i.id}`,a.resource(i.path,i.id)]));
   let nextId = Math.max(0, ...[...a.docs.values()].flatMap(d => children(child(d.documentElement, 'resources'), 'object').map(o => Number(o.getAttribute('id'))))) + 1;
   // Slicers assign model indexes when a parent first appears in the build,
   // regardless of resource order or numeric ID (see _create_object_instance).
@@ -244,22 +248,27 @@ export function exportNativeProject(project: Project, result: BrimResult, format
   const oldIndices: number[] = [], outputIds: string[] = [];
   children(build,'item').forEach(remove); originals.forEach(remove);
   children(a.config.documentElement,'plate').forEach(remove);
-  children(a.config.documentElement,'assemble').forEach(remove);
-  const outputPlate = plate.node.cloneNode(true) as El;
-  children(outputPlate, 'model_instance').forEach(remove);
-  children(outputPlate, 'metadata').filter(m => /(?:gcode|thumbnail|top_file|pick_file|pattern|slice|prediction|weight)/i.test(m.getAttribute('key') || '')).forEach(remove);
-  setMeta(a.config, outputPlate, 'plater_id', '1');
-  const assembly = a.config.createElement('assemble');
-  const originalAssembly = xml(strFromU8(files[CONFIG]));
-  const assemblies = children(originalAssembly.documentElement,'assemble').flatMap(n => children(n,'assemble_item'));
-  for (const instance of plate.instances) {
-    const parent = a.resource(instance.path, instance.id).cloneNode(true) as El;
-    const id = String(nextId++); parent.setAttribute('id',id);
+  const assemblyNodes = children(a.config.documentElement,'assemble'); assemblyNodes.forEach(remove);
+  const outputPlates = new Map(plates.map(p => {
+    const node = p.node.cloneNode(true) as El;
+    children(node, 'model_instance').forEach(remove);
+    children(node, 'metadata').filter(m => ['gcode_file','thumbnail_file','thumbnail_no_light_file','top_file','pick_file','pattern_file','pattern_bbox_file','prediction','weight'].includes(m.getAttribute('key') || '')).forEach(remove);
+    if (plate) setMeta(a.config,node,'plater_id','1');
+    return [p.id,node];
+  }));
+  const assemblies = assemblyNodes.flatMap(n => children(n,'assemble_item'));
+  const outputAssemblies = new Map(assemblyNodes.map(n => { const copy = n.cloneNode(true) as El; children(copy,'assemble_item').forEach(remove); return [n,copy]; }));
+  const reused = new Set<string>();
+  for (const instance of instances) {
+    const original = originalParents.get(`${instance.path}#${instance.id}`)!;
+    const parent = original.cloneNode(true) as El;
+    const reuse = !plate && instance.path === source.modelPath && !reused.has(instance.id); reused.add(instance.id);
+    const id = reuse ? instance.id : String(nextId++); parent.setAttribute('id',id);
     // Production UUIDs identify resource instances and must not be duplicated.
-    for (const attribute of Array.from(parent.attributes)) if (attribute.localName?.toLowerCase() === 'uuid') parent.removeAttribute(attribute.name);
+    if (!reuse) for (const attribute of Array.from(parent.attributes)) if (attribute.localName?.toLowerCase() === 'uuid') parent.removeAttribute(attribute.name);
     const cfg = (originals.find(c => c.getAttribute('id') === instance.id)?.cloneNode(true) as El | undefined) || a.config.createElement('object'); cfg.setAttribute('id',id);
     const object = native ? project.objects.find(o => o.buildIndex === instance.index) : project.objects[instance.index];
-    const transform = new Matrix4().makeTranslation(-plate.origin.x,-plate.origin.y,0).multiply(matrix(instance.item.getAttribute('transform')));
+    const transform = new Matrix4().makeTranslation(plate ? -plate.origin.x : 0,plate ? -plate.origin.y : 0,0).multiply(matrix(instance.item.getAttribute('transform')));
     const brim = object && result.objects.find(o => o.id === object.id);
     if (object) setMeta(a.config,cfg,'elefant_foot_compensation','0');
     let components = children(parent,'components')[0];
@@ -274,36 +283,41 @@ export function exportNativeProject(project: Project, result: BrimResult, format
     if (!children(cfg,'part').length) for (const [index,c] of children(components,'component').entries()) {
       addPart(a.config,cfg,c.getAttribute('objectid')!,object?.parts[index]?.name || `Part ${index+1}`);
     }
-    for (const c of children(components,'component')) for (const attribute of Array.from(c.attributes)) if (attribute.localName?.toLowerCase() === 'uuid') c.removeAttribute(attribute.name);
+    if (!reuse) for (const c of children(components,'component')) for (const attribute of Array.from(c.attributes)) if (attribute.localName?.toLowerCase() === 'uuid') c.removeAttribute(attribute.name);
     if (brim?.mesh.triangles.length) {
       const brimId = String(nextId++); addMesh(a.doc,resources,brimId,transformMesh(brim.mesh,transform.clone().invert()));
       const c = a.doc.createElementNS(NS,'component'); c.setAttribute('objectid',brimId); components.appendChild(c);
       const part = addPart(a.config,cfg,brimId,'Rolling brim');
       Object.entries(brimSettings(format,result.settings.perimeters)).forEach(([k,v]) => setMeta(a.config,part,k,v));
     }
+    if (reuse) remove(original);
     resources.appendChild(parent); a.config.documentElement.appendChild(cfg);
     const item = instance.item.cloneNode(true) as El;
-    for (const attribute of Array.from(item.attributes)) if (['path','uuid'].includes(attribute.localName?.toLowerCase() || '')) item.removeAttribute(attribute.name);
-    item.setAttribute('objectid',id); item.setAttribute('transform',transformText(transform)); build.appendChild(item);
-    const ref = children(plate.node,'model_instance').find(r => meta(r,'object_id') === instance.id && meta(r,'instance_id') === String(instance.instance))?.cloneNode(true) as El | undefined;
-    const outputRef = ref || a.config.createElement('model_instance'); setMeta(a.config,outputRef,'object_id',id); setMeta(a.config,outputRef,'instance_id','0'); outputPlate.appendChild(outputRef);
+    for (const attribute of Array.from(item.attributes)) if (attribute.localName === 'path' || (plate && attribute.localName === 'uuid')) item.removeAttribute(attribute.name);
+    item.setAttribute('objectid',id); if (plate) item.setAttribute('transform',transformText(transform)); build.appendChild(item);
+    const assigned = plates.find(p => p.instances.includes(instance));
+    if (assigned) {
+      const ref = children(assigned.node,'model_instance').find(r => meta(r,'object_id') === instance.id && meta(r,'instance_id') === String(instance.instance))?.cloneNode(true) as El | undefined;
+      const outputRef = ref || a.config.createElement('model_instance'); setMeta(a.config,outputRef,'object_id',id); setMeta(a.config,outputRef,'instance_id','0'); outputPlates.get(assigned.id)!.appendChild(outputRef);
+    }
     const originalAssemble = assemblies.find(n => n.getAttribute('object_id') === instance.id && n.getAttribute('instance_id') === String(instance.instance));
-    if (originalAssemble) { const copy = originalAssemble.cloneNode(true) as El; copy.setAttribute('object_id',id); copy.setAttribute('instance_id','0'); assembly.appendChild(copy); }
+    if (originalAssemble) { const copy = originalAssemble.cloneNode(true) as El; copy.setAttribute('object_id',id); copy.setAttribute('instance_id','0'); outputAssemblies.get(originalAssemble.parentNode as El)!.appendChild(copy); }
     oldIndices.push(objectOrder.indexOf(instance.id)+1); outputIds.push(id);
   }
-  a.config.documentElement.appendChild(outputPlate);
-  if (children(assembly,'assemble_item').length) a.config.documentElement.appendChild(assembly);
-  visited.clear(); outputIds.forEach(id => resolve(source.modelPath,id));
-  for (const [path,doc] of a.docs) {
+  for (const node of outputPlates.values()) a.config.documentElement.appendChild(node);
+  if (!plate) originals.filter(c => !reused.has(c.getAttribute('id')!)).forEach(c => a.config.documentElement.appendChild(c));
+  for (const assembly of outputAssemblies.values()) if (!plate || children(assembly,'assemble_item').length) a.config.documentElement.appendChild(assembly);
+  if (plate) { visited.clear(); outputIds.forEach(id => resolve(source.modelPath,id)); }
+  if (plate) for (const [path,doc] of a.docs) {
     const objects = children(child(doc.documentElement,'resources'),'object');
     objects.filter(o => !visited.has(`${path}#${o.getAttribute('id')}`)).forEach(remove);
     if (path !== source.modelPath && !children(child(doc.documentElement,'resources'),'object').length) delete files[path];
     else files[path] = serialize(doc);
   }
-  for (const path of Object.keys(files)) if (/\.model$/i.test(path) && !a.docs.has(path)) delete files[path];
+  if (plate) for (const path of Object.keys(files)) if (/\.model$/i.test(path) && !a.docs.has(path)) delete files[path];
   files[CONFIG] = serialize(a.config);
-  remapObjectMetadata(files,oldIndices);
-  if (files[PROFILE]) {
+  if (plate || oldIndices.some((index,i) => index !== i+1)) remapObjectMetadata(files,oldIndices);
+  if (plate && files[PROFILE]) {
     for (const key of ['wipe_tower_x','wipe_tower_y','wipe_tower_rotation_angle']) {
       const values = a.profile[key];
       if (Array.isArray(values) && values.length > 1) a.profile[key] = [values[Number(plate.id)-1] ?? values[0]];
@@ -311,7 +325,7 @@ export function exportNativeProject(project: Project, result: BrimResult, format
     files[PROFILE] = strToU8(JSON.stringify(a.profile,null,2));
   }
   const customPath = 'Metadata/custom_gcode_per_layer.xml';
-  if (files[customPath]) {
+  if (plate && files[customPath]) {
     const doc = xml(strFromU8(files[customPath]));
     for (const node of children(doc.documentElement,'plate')) {
       const info = children(node,'plate_info')[0];
@@ -321,32 +335,41 @@ export function exportNativeProject(project: Project, result: BrimResult, format
   }
   // Toolpaths, thumbnails and per-plate slice caches describe the old geometry.
   // Export an editable project which must be sliced again.
-  for (const path of Object.keys(files)) if (/\.(?:gcode|bgcode)(?:\..*)?$|^Metadata\/(?:slice_info\.config|filament_sequence\.json|(?:plate|plate_no_light|top|pick|pattern)_\d+[^/]*|bbl_thumbnail\.png)|^Auxiliaries\/\.thumbnails\//i.test(path)) delete files[path];
+  for (const path of Object.keys(files)) if (/\.(?:gcode|bgcode)(?:\..*)?$|^Metadata\/(?:slice_info\.config|(?:plate|plate_no_light|top|pick|pattern)_\d+[^/]*\.(?:png|jpg|json)|bbl_thumbnail\.png)|^Auxiliaries\/\.thumbnails\//i.test(path)) delete files[path];
+  if (plate) delete files['Metadata/filament_sequence.json'];
   for (const m of children(a.root,'metadata')) if (/^Thumbnail/i.test(m.getAttribute('name') || '')) remove(m);
   files[source.modelPath] = serialize(a.doc);
   // Rebuild model relationships, retaining unrelated valid package resources.
   for (const path of Object.keys(files).filter(p => p.endsWith('.rels'))) {
     const doc = xml(strFromU8(files[path]));
+    let changed = false;
     const base = path === '_rels/.rels' ? '' : path.slice(0,path.lastIndexOf('_rels/'));
     for (const relation of children(doc.documentElement,'Relationship')) {
       const target = relation.getAttribute('Target') || '';
       if (relation.getAttribute('TargetMode') === 'External') continue;
       const resolved = safePath(target.startsWith('/') ? target : base + target);
-      if (!files[resolved]) remove(relation);
+      if (!files[resolved]) { remove(relation); changed = true; }
     }
-    files[path] = serialize(doc);
+    if (changed) files[path] = serialize(doc);
   }
   const relNS = 'http://schemas.openxmlformats.org/package/2006/relationships';
   files['_rels/.rels'] ||= strToU8(`<Relationships xmlns="${relNS}"><Relationship Id="rel-1" Target="/${source.modelPath}" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>`);
   // All reachable external model parts are linked from the root model.
-  const modelRels = xml(`<Relationships xmlns="${relNS}"/>`);
-  [...a.docs.keys()].filter(p => p !== source.modelPath && files[p]).forEach((p,i) => { const r = modelRels.createElementNS(relNS,'Relationship'); r.setAttribute('Id',`model-${i+1}`); r.setAttribute('Target',`/${p}`); r.setAttribute('Type','http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel'); modelRels.documentElement.appendChild(r); });
-  const slash = source.modelPath.lastIndexOf('/'); files[`${source.modelPath.slice(0,slash+1)}_rels/${source.modelPath.slice(slash+1)}.rels`] = serialize(modelRels);
+  const slash = source.modelPath.lastIndexOf('/'), relPath = `${source.modelPath.slice(0,slash+1)}_rels/${source.modelPath.slice(slash+1)}.rels`;
+  const modelRels = !plate && files[relPath] ? xml(strFromU8(files[relPath])) : xml(`<Relationships xmlns="${relNS}"/>`);
+  let changedRels = !!plate || !files[relPath];
+  const relations = children(modelRels.documentElement,'Relationship'), relationIds = new Set(relations.map(r => r.getAttribute('Id')));
+  for (const path of [...a.docs.keys()].filter(p => p !== source.modelPath && files[p])) {
+    if (relations.some(r => { const target = r.getAttribute('Target') || ''; return r.getAttribute('TargetMode') !== 'External' && safePath(target.startsWith('/') ? target : source.modelPath.slice(0,slash+1)+target) === path; })) continue;
+    let id = 1; while (relationIds.has(`model-${id}`)) id++; relationIds.add(`model-${id}`);
+    const r = modelRels.createElementNS(relNS,'Relationship'); r.setAttribute('Id',`model-${id}`); r.setAttribute('Target',`/${path}`); r.setAttribute('Type','http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel'); modelRels.documentElement.appendChild(r); changedRels = true;
+  }
+  if (changedRels) files[relPath] = serialize(modelRels);
   const ctNS = 'http://schemas.openxmlformats.org/package/2006/content-types';
   const ct = files['[Content_Types].xml'] ? xml(strFromU8(files['[Content_Types].xml'])) : xml(`<Types xmlns="${ctNS}"/>`);
   children(ct.documentElement,'Override').filter(n => !files[safePath(n.getAttribute('PartName') || '')]).forEach(remove);
   for (const [ext,type] of [['model','application/vnd.ms-package.3dmanufacturing-3dmodel+xml'],['rels','application/vnd.openxmlformats-package.relationships+xml'],['config','application/octet-stream'],['json','application/json']]) if (!children(ct.documentElement,'Default').some(n => n.getAttribute('Extension') === ext)) { const n = ct.createElementNS(ctNS,'Default'); n.setAttribute('Extension',ext); n.setAttribute('ContentType',type); ct.documentElement.appendChild(n); }
   files['[Content_Types].xml'] = serialize(ct);
-  files['Metadata/rolling_brim.json'] = strToU8(JSON.stringify({version:1,settings:result.settings,sampleZ:result.settings.height/2,sourcePlate:plate.name,printOrder:'Determined by the slicer; brim-first is not guaranteed.'},null,2));
+  files['Metadata/rolling_brim.json'] = strToU8(JSON.stringify({version:1,settings:result.settings,sampleZ:result.settings.height/2,...(plate ? {sourcePlate:plate.name} : {}),printOrder:'Determined by the slicer; brim-first is not guaranteed.'},null,2));
   return zipSync(files,{level:6});
 }

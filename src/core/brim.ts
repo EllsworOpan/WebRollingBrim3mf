@@ -62,7 +62,8 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
     const shape = footprints[index], notes: string[] = [];
     // Each Objects-panel entry is a separate job. Its own parts/shells share
     // one footprint; neighbours never affect the rolled boundary or brim.
-    const { area, outline, regions, clipped } = brimGeometry(shape, project.bed, settings, enabled.includes(object.id));
+    const bed = object.bed ?? project.bed;
+    const { area, outline, regions, clipped } = brimGeometry(shape, bed, settings, enabled.includes(object.id));
     counts.outside += regions.counts.outside; counts.holes += regions.counts.holes; counts.pockets += regions.counts.pockets;
     const bottom = footprint(object, heights.bottom);
     const top = footprint(object, heights.top);
@@ -74,9 +75,9 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
       // the brim, never this sweep or which passages the circle can enter.
       // Neither band is trimmed against other objects.
       let sweep = subtractPolygons(offsetPolygons(outline, settings.diameter), outline);
-      if (project.bed.length) {
+      if (bed.length) {
         if (clipped) notes.push('Brim clipped to the project’s print bed.');
-        sweep = intersectPolygons(sweep, [project.bed]);
+        sweep = intersectPolygons(sweep, [bed]);
       }
       sweepAreas.push(...sweep);
       if (!area.length) notes.push('No brim fits the current width and rolling diameter.');

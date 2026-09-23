@@ -3,7 +3,7 @@ import { Matrix4 } from 'three';
 import { transformMesh } from './mesh';
 import { MIN_LAYER_HEIGHT, MAX_LAYER_HEIGHT } from './first-layer';
 import { NS, xml, serialize, children, child, matrix, readMesh, checkIds, type Doc, type El } from './three-mf-xml';
-import { configuration, settings, record, list, keys, finite, integer, fail, type JsonObject } from './prusa3-config';
+import { configuration, record, list, keys, finite, integer, fail, type JsonObject } from './prusa3-config';
 import type { Project, ModelObject, ModelPart, BrimResult, Mesh, Ring } from './types';
 
 export const PRUSA3_VERSION = 'PrusaSlicer-3.0.0-alpha12';
@@ -36,7 +36,10 @@ function archive(files: Record<string, Uint8Array>, modelPath: string, modelDocu
   if (root.getAttribute('requiredextensions')) fail('3MF extensions/external model resources are not supported yet.');
   attrs(root,['unit','xml:lang']); tags(root,['metadata','resources','build']);
   if (children(root,'resources').length !== 1 || children(root,'build').length !== 1) fail('Expected one resources section and one build.');
-  for (const path of Object.keys(files)) if (![modelPath,PROJECT,PAINT,'[Content_Types].xml','_rels/.rels','Metadata/thumbnail.png','Metadata/rolling_brim.json'].includes(path)) fail(`Unrecognized archive entry: ${path}.`);
+  for (const path of Object.keys(files)) {
+    if ((/\.model$/i.test(path) && path !== modelPath) || (/\.rels$/i.test(path) && path !== '_rels/.rels')) fail(`External model resources/relationships are unsupported: ${path}.`);
+    if (/^Metadata\/(?:Slic3r_PE_model|Slic3r_PE|model_settings|project_settings)\.config$/i.test(path)) fail('Mixed slicer metadata cannot be updated safely.');
+  }
   const data = record(json(files[PROJECT], 'PrusaSlicer 3 project'), 'project file');
   keys(data,['objects','project','config_containers'],'project');
   const projectInfo = record(data.project,'project identity'); keys(projectInfo,['id','version'],'project identity');
@@ -75,7 +78,7 @@ function archive(files: Record<string, Uint8Array>, modelPath: string, modelDocu
   for (const cfg of configurations) {
     keys(cfg,['id','volumes','instances','object_settings'],'object');
     const id = integer(cfg.id,'object id',1); if (configIds.has(id)) fail('Duplicate object metadata.'); configIds.add(id);
-    settings(cfg.object_settings,'Object');
+    record(cfg.object_settings ?? {},'object settings');
     const parent = resource(String(id)), refs = children(child(parent,'components'),'component');
     const volumes = list(cfg.volumes,'volumes').map(v => record(v,'volume'));
     if (volumes.length !== refs.length || !volumes.length) fail('Volume metadata does not match the components.');
@@ -85,54 +88,32 @@ function archive(files: Record<string, Uint8Array>, modelPath: string, modelDocu
       const vid = integer(v.id,'volume id',1); volumeIds.add(vid);
       if (localIds.has(vid) || refs[i].getAttribute('objectid') !== String(vid)) fail('Ambiguous volume references.'); localIds.add(vid);
       if (!ROLES.includes(String(v.type))) fail(`Unknown volume type: ${v.type}.`);
-      settings(v.volume_settings,'Volume');
-      if (v.source !== undefined) {
-        const source = record(v.source,'volume source'); keys(source,['filepath','offset','isFromInch','isFromMeters','objectIdx','volumeIdx','repair'],'volume source');
-      }
+      record(v.volume_settings ?? {},'volume settings');
       const volume = resource(String(vid)), geometry = children(child(volume,'components'),'component');
       if (geometry.length !== 1 || geometry[0].hasAttribute('transform') || !meshes.has(geometry[0].getAttribute('objectid')!)) fail('Unsupported nested volume geometry.');
     }
   }
   const painting = files[PAINT] ? list(json(files[PAINT],'painting'),'painting').map(v => record(v,'painting entry')) : [];
-  const paintKinds = ['mmSegmentationFacets','supportedFacets','seamFacets','fuzzySkinFacets'];
   const painted = new Set<number>();
   for (const p of painting) {
-    keys(p,['id',...paintKinds,...paintKinds.map(k => `${k}Version`)],'painting');
     const id = integer(p.id,'painted volume',1);
     if (!volumeIds.has(id) || painted.has(id)) fail('Painting refers to a missing or duplicate volume.'); painted.add(id);
-    const leaf = child(resource(String(id)),'components');
-    const count = meshes.get(child(leaf,'component').getAttribute('objectid')!)!.triangles.length / 3;
-    for (const kind of paintKinds) {
-      if (p[kind] === undefined && p[`${kind}Version`] === undefined) continue;
-      if (![1,2].includes(integer(p[`${kind}Version`] ?? 1,'painting version',1))) fail('Unrecognized painting version.');
-      const triangles = new Set<number>();
-      for (const item of list(p[kind],kind)) {
-        const face = record(item,'painted triangle'); keys(face,['triangle','dividing'],'painted triangle');
-        const index = integer(face.triangle,'painted triangle');
-        if (index >= count || triangles.has(index) || typeof face.dividing !== 'string' || !/^[0-9a-f]+$/i.test(face.dividing)) fail('Invalid painting indices or encoding.');
-        triangles.add(index);
-      }
-    }
+    // Only the volume ID changes when an instance needs a new wrapper.
+    // Painting payloads stay attached to unchanged source triangle corners.
   }
   const beds: Bed[] = [];
   for (const c of list(data.config_containers,'configuration groups')) {
     const container = record(c,'configuration group'); keys(container,['beds','preset','configuration','virtual_extruders'],'configuration group');
-    if (container.virtual_extruders !== undefined) fail('Virtual extruders are not supported yet.');
     const preset = record(container.preset,'preset'), hw = record(preset.hw_config,'printer hardware');
-    if (hw.technology !== 'fff' || hw.tool_count !== 1 || list(preset.materials,'materials').length !== 1) fail('Only single-tool, single-material FFF profiles are supported.');
     const config = configuration(container.configuration), printer = record(config.printer_settings,'printer settings'), print = record(config.print_settings,'print settings');
-    if (printer.printer_technology !== 'FFF' || printer.single_extruder_multi_material === true || print.spiral_vase === true || Number(print.raft_layers) !== 0) fail('SLA, multimaterial, vase and raft printing are not supported.');
+    if (printer.printer_technology !== 'FFF' || print.spiral_vase !== false || integer(print.raft_layers ?? 0,'raft layers') !== 0) fail('SLA, vase and raft printing are not supported.');
     const outline = list(printer.bed_shape,'bed outline').map(p => { const pair = list(p,'bed vertex'); if (pair.length !== 2) fail('Invalid bed vertex.'); return {x:finite(pair[0],'bed X'),y:finite(pair[1],'bed Y')}; });
     const minX = Math.min(...outline.map(p => p.x)), maxX = Math.max(...outline.map(p => p.x)), minY = Math.min(...outline.map(p => p.y)), maxY = Math.max(...outline.map(p => p.y));
     if (outline.length !== 4 || minX >= maxX || minY >= maxY || new Set(outline.map(p => `${p.x},${p.y}`)).size !== 4 || outline.some((p,i) => (p.x !== minX && p.x !== maxX) || (p.y !== minY && p.y !== maxY) || (p.x !== outline[(i+1)%4].x && p.y !== outline[(i+1)%4].y))) fail('Only rectangular bed outlines are supported.');
     const height = finite(printer.max_print_height,'print height'); if (height <= 0) fail('Invalid print height.');
     for (const value of list(container.beds,'beds')) {
       const node = record(value,'bed'); keys(node,['position_x','position_y','wipe_tower','custom_gcode'],'bed');
-      if (node.wipe_tower !== null && node.wipe_tower !== undefined) fail('Wipe towers are not supported in this single-material adapter.');
-      if (node.custom_gcode !== null && node.custom_gcode !== undefined) {
-        const code = record(node.custom_gcode,'bed G-code'); keys(code,['mode','gcodes'],'bed G-code'); integer(code.mode,'G-code mode');
-        for (const entry of list(code.gcodes,'bed G-code entries')) { const item = record(entry,'G-code entry'); keys(item,['gcode'],'G-code entry'); const g = record(item.gcode,'G-code'); keys(g,['type','print_z','extruder','color','extra'],'G-code'); integer(g.type,'G-code type'); finite(g.print_z,'G-code height'); if (integer(g.extruder,'G-code extruder') > 1 || typeof g.color !== 'string' || typeof g.extra !== 'string') fail('Unsupported bed G-code.'); }
-      }
+      // Wipe towers, custom G-code and material assignments are copied unchanged.
       const id = String(beds.length+1), printerName = typeof hw.config_name === 'string' ? hw.config_name : 'FFF';
       beds.push({id,name:`Bed ${id} · ${printerName}`,node,container,outline,config,x:finite(node.position_x,'bed position'),y:finite(node.position_y,'bed position'),minX,minY,maxX,maxY,height,instances:[]});
     }
@@ -162,28 +143,41 @@ function archive(files: Record<string, Uint8Array>, modelPath: string, modelDocu
     for (const part of positive) for (let i=0;i<part.mesh.vertices.length;i+=3) { const [x,y,z] = part.mesh.vertices.slice(i,i+3); bounds.minX=Math.min(bounds.minX,x); bounds.minY=Math.min(bounds.minY,y); bounds.minZ=Math.min(bounds.minZ,z); bounds.maxX=Math.max(bounds.maxX,x); bounds.maxY=Math.max(bounds.maxY,y); bounds.maxZ=Math.max(bounds.maxZ,z); }
     const candidates = beds.filter(b => bounds.minX >= b.x+b.minX-1e-5 && bounds.maxX <= b.x+b.maxX+1e-5 && bounds.minY >= b.y+b.minY-1e-5 && bounds.maxY <= b.y+b.maxY+1e-5 && bounds.minZ >= -1e-5 && bounds.maxZ <= b.height+1e-5);
     if (candidates.length !== 1) fail(`Object ${parent.getAttribute('name') || cfg.id} must fit completely inside exactly one bed. Move outside or crossing objects in PrusaSlicer first.`);
-    if (Number(record(cfg.object_settings ?? {},'object settings').raft_layers ?? 0) !== 0) fail('Object rafts are not supported.');
+    const objectSettings = record(cfg.object_settings ?? {},'object settings');
+    if (integer(objectSettings.raft_layers ?? 0,'object raft layers') !== 0) fail('Object rafts are not supported.');
     candidates[0].instances.push({index,item,cfg,parent,parts,printable:printability.get(index) !== false});
   }
   return {doc,root,resources,build,data,painting,beds};
 }
 
 export function importPrusa3Project(name: string, files: Record<string,Uint8Array>, modelPath: string, plateId?: string, modelDocument?: Doc): Project {
-  const a = archive(files,modelPath,modelDocument), bed = plateId === undefined ? a.beds.find(b => b.instances.some(i => i.printable)) || a.beds[0] : a.beds.find(b => b.id === plateId);
-  if (!bed) fail('The requested bed does not exist.');
-  const translation = new Matrix4().makeTranslation(-bed!.x,-bed!.y,0);
-  const objects: ModelObject[] = bed!.instances.filter(i => i.printable).map(i => ({id:`object-${i.index}`,name:i.parent.getAttribute('name') || `Object ${i.index+1}`,resourceId:String(i.cfg.id),buildIndex:i.index,transform:translation.clone().multiply(matrix(i.item.getAttribute('transform'))).toArray(),parts:i.parts.map(p => ({...p,mesh:transformMesh(p.mesh,translation)}))}));
-  const warnings = ['Experimental PrusaSlicer 3.0.0-alpha12 support. Export contains only the selected bed.'];
-  if (!objects.length) warnings.push('This bed has no printable model objects. Choose another bed.');
-  const print = record(bed!.config.print_settings,'print settings'), tool = record(bed!.config.toolprint_settings,'tool settings');
-  const effective = (key: string) => Array.isArray(tool[key]) && tool[key][0] !== null ? tool[key][0] : print[key];
-  const h = record(effective('first_layer_height'),'first-layer height');
-  const suggestedHeight = h.is_percent === false && typeof h.value === 'number' && h.value >= MIN_LAYER_HEIGHT && h.value <= MAX_LAYER_HEIGHT ? h.value : undefined;
-  if (suggestedHeight === undefined) warnings.push('Choose the first-layer height manually; the stored value is relative or outside the supported range.');
-  if (Number(effective('brim_width')) > 0 || bed!.instances.some(i => Number(record(i.cfg.object_settings ?? {},'object settings').brim_width) > 0)) warnings.push('Native slicer brim is enabled. Disable it in the slicer if unwanted.');
-  if (Number(effective('xy_size_compensation')) || bed!.instances.some(i => Number(record(i.cfg.object_settings ?? {},'object settings').xy_size_compensation))) warnings.push('The project applies XY compensation. Check the separation gap after slicing.');
+  const a = archive(files,modelPath,modelDocument), selected = plateId ? a.beds.find(b => b.id === plateId) : undefined;
+  if (plateId && !selected) fail('The requested bed does not exist.');
+  const beds = selected ? [selected] : a.beds;
+  const outline = (b: Bed) => b.outline.map(p => ({x:p.x+(selected ? 0 : b.x),y:p.y+(selected ? 0 : b.y)}));
+  const objects: ModelObject[] = beds.flatMap(bed => {
+    const translation = new Matrix4().makeTranslation(selected ? -bed.x : 0,selected ? -bed.y : 0,0);
+    return bed.instances.filter(i => i.printable).map(i => ({id:`object-${i.index}`,name:i.parent.getAttribute('name') || `Object ${i.index+1}`,resourceId:String(i.cfg.id),buildIndex:i.index,transform:translation.clone().multiply(matrix(i.item.getAttribute('transform'))).toArray(),parts:i.parts.map(p => ({...p,mesh:transformMesh(p.mesh,translation)})),...(!selected ? {plateId:bed.id,bed:outline(bed)} : {})}));
+  }).sort((a,b) => a.buildIndex-b.buildIndex);
+  const warnings = ['Experimental PrusaSlicer 3.0.0-alpha12 support.'];
+  if (!objects.length) warnings.push('No printable model objects were found.');
+  const effective = (key: string): unknown[] => beds.flatMap(bed => {
+    const print = record(bed.config.print_settings,'print settings'), tool = record(bed.config.toolprint_settings,'tool settings');
+    return Array.isArray(tool[key]) && tool[key].length ? tool[key].map(value => value ?? print[key]) : [print[key]];
+  });
+  const heights = effective('first_layer_height').map(value => {
+    const h = record(value,'first-layer height');
+    return h.is_percent === false && typeof h.value === 'number' && h.value >= MIN_LAYER_HEIGHT && h.value <= MAX_LAYER_HEIGHT ? h.value : undefined;
+  });
+  const suggestedHeight = heights.every(h => h === heights[0]) ? heights[0] : undefined;
+  if (suggestedHeight === undefined) warnings.push('Choose the first-layer height manually and match it in the slicer: beds or tools have differing, relative or unsupported first-layer heights.');
+  const instances = beds.flatMap(b => b.instances);
+  if (effective('brim_width').some(v => Number(v) > 0) || instances.some(i => Number(record(i.cfg.object_settings ?? {},'object settings').brim_width) > 0)) warnings.push('Native slicer brim is enabled. Disable it in the slicer if unwanted.');
+  if (effective('xy_size_compensation').some(v => Number(v)) || instances.some(i => Number(record(i.cfg.object_settings ?? {},'object settings').xy_size_compensation))) warnings.push('The project applies XY compensation. Check the separation gap after slicing.');
+  if (beds.some(b => { const materials = record(b.container.preset,'preset').materials; return Array.isArray(materials) && materials.length > 1; })) warnings.push('Material slots and virtual extruders are preserved. New brim parts inherit their parent object’s material settings, not its painted colors.');
+  if (beds.some(b => b.node.wipe_tower)) warnings.push('Wipe towers are preserved. Check their clearance from the new brims in the slicer; they are not shown or clipped against in this preview.');
   if (objects.some(o => o.parts.some(p => p.kind === 'NegativeVolume'))) warnings.push('Negative volumes are applied in the footprint view. The 3D view shows the original positive meshes.');
-  return {name,objects,bed:bed!.outline,warnings,suggestedHeight,format:'prusa3',source:{files,modelPath},plates:a.beds.map(b => ({id:b.id,name:b.name,objectCount:b.instances.length})),activePlateId:bed!.id};
+  return {name,objects,bed:selected ? selected.outline : beds.length === 1 ? outline(beds[0]) : [],warnings,suggestedHeight,format:'prusa3',source:{files,modelPath},plates:a.beds.map(b => ({id:b.id,name:b.name,objectCount:b.instances.length,...(!selected ? {bed:outline(b)} : {})})),activePlateId:selected?.id};
 }
 
 function meshResource(doc: Doc, id: string, mesh: Mesh): El {
@@ -197,14 +191,20 @@ export function exportPrusa3Project(project: Project, result: BrimResult, modelD
   if (!project.source || project.format !== 'prusa3') fail('Native PrusaSlicer 3 input is required.');
   if (!result.objects.some(o => o.mesh.triangles.length)) throw new Error('Generate at least one brim before exporting.');
   const source = project.source!, files = {...source.files}, a = archive(files,source.modelPath,modelDocument);
-  const bed = a.beds.find(b => b.id === project.activePlateId) || fail('Select a bed before export.');
+  const bed = project.activePlateId ? a.beds.find(b => b.id === project.activePlateId) : undefined;
+  if (project.activePlateId && !bed) fail('The requested bed does not exist.');
+  const instances = bed ? bed.instances : a.beds.flatMap(b => b.instances).sort((a,b) => a.index-b.index);
   let id = Math.max(...children(a.resources,'object').map(o => Number(o.getAttribute('id'))))+1;
-  const output: JsonObject[] = [], outputPainting: JsonObject[] = [];
+  const output: JsonObject[] = [], outputPainting: JsonObject[] = bed ? [] : [...a.painting];
+  const reused = new Set<number>();
   children(a.build,'item').forEach(remove);
-  for (const [ordinal,i] of bed.instances.entries()) {
-    const parent = i.parent.cloneNode(true) as El, parentId = id++; parent.setAttribute('id',String(parentId));
+  for (const [ordinal,i] of instances.entries()) {
+    // Keep original IDs for the first instance. Only repeated instances need
+    // separate wrappers so their generated brim/settings can differ.
+    const reuse = !bed && !reused.has(Number(i.cfg.id)); reused.add(Number(i.cfg.id));
+    const parent = i.parent.cloneNode(true) as El, parentId = reuse ? Number(i.cfg.id) : id++; parent.setAttribute('id',String(parentId));
     const cfg = structuredClone(i.cfg), volumes = cfg.volumes as JsonObject[]; cfg.id = parentId;
-    for (const [index,v] of volumes.entries()) {
+    if (!reuse) for (const [index,v] of volumes.entries()) {
       const oldId = Number(v.id), volumeId = id++;
       const original = children(a.resources,'object').find(o => o.getAttribute('id') === String(oldId))!;
       const volume = original.cloneNode(true) as El; volume.setAttribute('id',String(volumeId)); a.resources.appendChild(volume);
@@ -217,7 +217,7 @@ export function exportPrusa3Project(project: Project, result: BrimResult, modelD
       // Alpha12 permits volume-level compensation, which overrides the parent.
       for (const v of volumes) if (v.type === 'ModelPart') v.volume_settings = {...record(v.volume_settings ?? {},'volume settings'),elefant_foot_compensation:0};
     }
-    const transform = new Matrix4().makeTranslation(-bed.x,-bed.y,0).multiply(matrix(i.item.getAttribute('transform')));
+    const transform = new Matrix4().makeTranslation(bed ? -bed.x : 0,bed ? -bed.y : 0,0).multiply(matrix(i.item.getAttribute('transform')));
     const brim = i.printable && result.objects.find(o => o.id === `object-${i.index}`);
     if (brim && brim.mesh.triangles.length) {
       const meshId = id++, volumeId = id++;
@@ -227,16 +227,16 @@ export function exportPrusa3Project(project: Project, result: BrimResult, modelD
       const component = a.doc.createElementNS(NS,'component'); component.setAttribute('objectid',String(volumeId)); child(parent,'components').appendChild(component);
       volumes.push({id:volumeId,type:'ModelPart',volume_settings:{perimeters:result.settings.perimeters,fill_density:{value:0,is_percent:true},top_solid_layers:0,bottom_solid_layers:0,top_solid_min_thickness:0,bottom_solid_min_thickness:0,gap_fill_enabled:false,ensure_vertical_shell_thickness:'disabled',only_one_perimeter_first_layer:false,top_one_perimeter_type:'none',ironing:false,elefant_foot_compensation:0,wipe_into_infill:false}});
     }
-    output.push(cfg); a.resources.appendChild(parent);
-    const item = i.item.cloneNode(true) as El; item.setAttribute('objectid',String(parentId)); item.setAttribute('transform',transformText(transform)); a.build.appendChild(item);
+    output.push(cfg); if (reuse) remove(i.parent); a.resources.appendChild(parent);
+    const item = i.item.cloneNode(true) as El; item.setAttribute('objectid',String(parentId)); if (bed) item.setAttribute('transform',transformText(transform)); a.build.appendChild(item);
   }
-  a.data.objects = output;
-  a.data.config_containers = [{...bed.container,beds:[{...bed.node,position_x:0,position_y:0}]}];
+  a.data.objects = [...output,...(!bed ? (a.data.objects as JsonObject[]).filter(c => !reused.has(Number(c.id))) : [])];
+  if (bed) a.data.config_containers = [{...bed.container,beds:[{...bed.node,position_x:0,position_y:0}]}];
   const all = children(a.resources,'object'), used = new Set<string>();
   const visit = (id: string) => { if (used.has(id)) return; used.add(id); const object = all.find(o => o.getAttribute('id') === id)!; for (const cs of children(object,'components')) for (const c of children(cs,'component')) visit(c.getAttribute('objectid')!); };
-  children(a.build,'item').forEach(i => visit(i.getAttribute('objectid')!)); all.filter(o => !used.has(o.getAttribute('id')!)).forEach(remove);
+  if (bed) { children(a.build,'item').forEach(i => visit(i.getAttribute('objectid')!)); all.filter(o => !used.has(o.getAttribute('id')!)).forEach(remove); }
   files[PROJECT] = strToU8(JSON.stringify(a.data,null,2));
-  if (files[PAINT]) files[PAINT] = strToU8(JSON.stringify(outputPainting,null,2));
+  if (files[PAINT] && (bed || outputPainting.length !== a.painting.length)) files[PAINT] = strToU8(JSON.stringify(outputPainting,null,2));
   delete files['Metadata/thumbnail.png'];
   const rels = xml(strFromU8(files['_rels/.rels']));
   children(rels.documentElement,'Relationship').filter(r => /\/thumbnail$/.test(r.getAttribute('Type') || '')).forEach(remove); files['_rels/.rels'] = serialize(rels);
@@ -244,6 +244,6 @@ export function exportPrusa3Project(project: Project, result: BrimResult, modelD
   children(ct.documentElement,'Override').filter(n => n.getAttribute('PartName') === '/Metadata/thumbnail.png').forEach(remove); files['[Content_Types].xml'] = serialize(ct);
   children(a.root,'metadata').filter(m => /^Thumbnail/i.test(m.getAttribute('name') || '')).forEach(remove);
   files[source.modelPath] = serialize(a.doc);
-  files['Metadata/rolling_brim.json'] = strToU8(JSON.stringify({version:1,settings:result.settings,sourceBed:bed.name,sampleZ:result.settings.height/2,printOrder:'Determined by PrusaSlicer; brim-first is not guaranteed.'}));
+  files['Metadata/rolling_brim.json'] = strToU8(JSON.stringify({version:1,settings:result.settings,...(bed ? {sourceBed:bed.name} : {}),sampleZ:result.settings.height/2,printOrder:'Determined by PrusaSlicer; brim-first is not guaranteed.'}));
   return zipSync(files,{level:6});
 }
