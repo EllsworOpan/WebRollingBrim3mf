@@ -170,3 +170,4 @@
 .circle-sweep-swatch { background:#54d7c038; border:1px solid #75e6d1; }
 @media(max-width:1050px) { .compact-layer-bar:has(.outline-control) { gap:8px 14px; padding:10px 18px; } }
 @media(max-width:600px) { .compact-metrics { font-size:10px; text-align:right; } .compact-layer-bar .outline-control { margin-left:0; flex:1; } .compact-layer-bar .layer-title { font-size:10px; } .outline-explanation { padding:12px 18px; } }
+.uncovered-swatch { background:#ff8972; }

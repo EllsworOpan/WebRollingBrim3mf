@@ -1,4 +1,4 @@
-import { boundsOf, classifyRegions, intersectPolygons, offsetPolygons, subtractPolygons, totalArea, unionPolygons } from './geometry';
+import { boundsOf, classifyRegions, intersectPolygons, offsetPolygons, polygonsOf, subtractPolygons, totalArea, unionPolygons } from './geometry';
 import { extrude, sliceMesh } from './mesh';
 import { sampleHeights, MIN_LAYER_HEIGHT, MAX_LAYER_HEIGHT } from './first-layer';
 import type { Bounds, BrimResult, BrimSettings, ModelObject, Project, Rings } from './types';
@@ -60,7 +60,12 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
       sweepAreas.push(...sweep);
       if (!area.length) notes.push('No brim fits the current width and rolling diameter.');
     }
-    return { id: object.id, footprint: shape, bottom, top, area, mesh: extrude(area, settings.height), areaMm2: totalArea(area), changeArea, warnings: notes };
+    // Check the actual, bed-clipped brim for this object, not the circle sweep.
+    // Allow the intentional positive gap plus 0.02 mm for polygon approximation;
+    // zero/negative gaps already touch/overlap. Preserve holes in the highlight.
+    const reach = offsetPolygons(area, Math.max(0, settings.gap) + 0.02);
+    const uncovered = polygonsOf(shape).filter(island => totalArea(intersectPolygons([island.outer,...island.holes],reach)) < 0.0001);
+    return { id: object.id, footprint: shape, bottom, top, area, uncovered, mesh: extrude(area, settings.height), areaMm2: totalArea(area), changeArea, warnings: notes };
   });
   if (!objects.some(o => o.area.length)) warnings.push('No printable brim area is selected.');
   return { objects, circleSweep: unionPolygons(sweepAreas), bounds: boundsOf([...footprints.flat(), ...objects.flatMap(o => o.area)]), regions: counts, settings: { ...settings }, warnings, computeMs: performance.now() - start };

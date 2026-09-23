@@ -78,6 +78,8 @@ Pieces or model parts within one object can be connected by its brim. Separate o
 
 The footprint preview draws all gray models above the orange brims, with comparison outlines on top. This keeps model boundaries visible where separate objects' brims overlap them; the complete brim geometry is still exported. The displayed brim area is the sum of the individual parts, so overlapping areas count once per part.
 
+**Uncovered** in the 2D legend highlights disconnected first-layer footprints with red hatching when they have no adjacent brim from their own object. The count is per footprint, so one STL can contain both covered and uncovered pieces. The check uses the actual brim after bed clipping, allows for the selected positive separation gap (plus a 0.02 mm geometry tolerance), and counts contact along any part of the footprint boundary. Unchecked objects are included; another object's overlapping brim does not count as their brim. Click **Uncovered** to hide or show the shading. This is a mesh-based advisory; PrusaSlicer still determines the printable toolpaths, and the indicator never adds connecting geometry or changes the export.
+
 The original clearance-test-plate STL is included. With a 10 mm rolling diameter, the upper-left hole and upper-right narrow-entry pocket demonstrate the independent toggles. The small lower-left hole stays empty; the wide lower-right opening remains reachable. The four pieces have 20 mm gaps: try a 30 mm rolling diameter with a 5 mm brim to see one continuous band follow the curves across their entrances while the blocked passages remain empty.
 
 ## Brim part overrides
