@@ -42,13 +42,13 @@ interface Instance { item: El; id: string; path: string; index: number; instance
 interface NativePlate { id: string; name: string; node: El; instances: Instance[]; origin: { x: number; y: number } }
 
 /** Archive XML stays authoritative. Preview meshes are disposable transformed copies. */
-function nativeArchive(files: Record<string, Uint8Array>, modelPath: string) {
+function nativeArchive(files: Record<string, Uint8Array>, modelPath: string, modelDocument?: Doc) {
   if (!files[CONFIG]) throw new Error('The Bambu/Orca project has no model settings. Save it as an editable 3MF project in its slicer.');
   const docs = new Map<string, Doc>();
   const model = (path: string): Doc => {
     const cached = docs.get(path); if (cached) return cached;
     if (!files[path]) throw new Error(`Missing model resource: ${path}`);
-    const doc = xml(strFromU8(files[path])), root = doc.documentElement;
+    const doc = path === modelPath && modelDocument ? modelDocument : xml(strFromU8(files[path])), root = doc.documentElement;
     if (root.localName !== 'model' || root.namespaceURI !== NS) throw new Error('Unsupported Bambu/Orca model resource.');
     if ((root.getAttribute('unit') || 'millimeter') !== 'millimeter') throw new Error('Bambu/Orca projects must use millimetres. Save the project in its slicer first.');
     for (const prefix of (root.getAttribute('requiredextensions') || '').split(/\s+/).filter(Boolean)) {
@@ -108,8 +108,8 @@ function nativeArchive(files: Record<string, Uint8Array>, modelPath: string) {
   return { doc, root, config, configs, profile, bed, plates, instances, docs, model, resource, reference, format };
 }
 
-export function importNativeProject(name: string, files: Record<string, Uint8Array>, modelPath: string, plateId?: string): Project {
-  const a = nativeArchive(files, modelPath);
+export function importNativeProject(name: string, files: Record<string, Uint8Array>, modelPath: string, plateId?: string, modelDocument?: Doc): Project {
+  const a = nativeArchive(files, modelPath, modelDocument);
   const active = plateId ? a.plates.find(p => p.id === plateId) : a.plates.find(p => p.instances.some(i => !['0','false'].includes(i.item.getAttribute('printable') || ''))) || a.plates[0];
   if (!active) throw new Error('The requested plate does not exist.');
   const warnings: string[] = [];
@@ -155,11 +155,6 @@ export function importNativeProject(name: string, files: Record<string, Uint8Arr
   const suggestedHeight = height && Number.isFinite(Number(height)) && Number(height) >= MIN_LAYER_HEIGHT && Number(height) <= MAX_LAYER_HEIGHT ? Number(height) : undefined;
   if (height && suggestedHeight === undefined) warnings.push('The stored first-layer height is outside the supported range. Choose the height manually.');
   return { name, objects, bed:a.bed, warnings:[...new Set(warnings)], source:{files,modelPath}, format:a.format, suggestedHeight, plates:a.plates.map(p => ({id:p.id,name:p.name,objectCount:p.instances.length})), activePlateId:active.id };
-}
-
-export function selectPlate(project: Project, plateId: string): Project {
-  if (!project.source || !['bambu','orca'].includes(project.format || '')) throw new Error('This project does not contain selectable plates.');
-  return importNativeProject(project.name, project.source.files, project.source.modelPath, plateId);
 }
 
 function addMesh(doc: Doc, resources: El, id: string, mesh: Mesh): El {
@@ -220,11 +215,11 @@ function remapObjectMetadata(files: Record<string, Uint8Array>, objectIndices: n
   }
 }
 
-export function exportNativeProject(project: Project, result: BrimResult, format: SlicerFormat): Uint8Array {
+export function exportNativeProject(project: Project, result: BrimResult, format: SlicerFormat, modelDocument?: Doc): Uint8Array {
   if (!result.objects.some(o => o.mesh.triangles.length)) throw new Error('Generate at least one brim before exporting.');
   const native = project.format === 'bambu' || project.format === 'orca';
   const source = native ? project.source! : freshArchive(project, format);
-  const files = {...source.files}, a = nativeArchive(files, source.modelPath);
+  const files = {...source.files}, a = nativeArchive(files, source.modelPath, native ? modelDocument : undefined);
   const plate = a.plates.find(p => p.id === (native ? project.activePlateId : '1'));
   if (!plate) throw new Error('Select a plate before exporting.');
   // New assembly-tree formats carry additional model references. Do not silently

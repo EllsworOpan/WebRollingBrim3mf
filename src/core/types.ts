@@ -6,8 +6,8 @@ export interface Bounds { minX: number; minY: number; maxX: number; maxY: number
 export interface Mesh { vertices: number[]; triangles: number[] }
 export interface ModelPart { name: string; kind: string; mesh: Mesh }
 export interface ModelObject { id: string; name: string; parts: ModelPart[]; resourceId: string; buildIndex: number; transform: number[] }
-export type SlicerFormat = 'prusa' | 'bambu' | 'orca';
-export const SLICER_NAMES: Record<SlicerFormat, string> = { prusa: 'PrusaSlicer', bambu: 'Bambu Studio', orca: 'OrcaSlicer' };
+export type SlicerFormat = 'prusa' | 'prusa3' | 'bambu' | 'orca';
+export const SLICER_NAMES: Record<SlicerFormat, string> = { prusa: 'PrusaSlicer 2.x', prusa3: 'PrusaSlicer 3.0 alpha12', bambu: 'Bambu Studio', orca: 'OrcaSlicer' };
 export interface Plate { id: string; name: string; objectCount: number }
 export interface Project {
   name: string; objects: ModelObject[]; warnings: string[]; bed: Ring;

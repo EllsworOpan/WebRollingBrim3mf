@@ -1,0 +1,3301 @@
+{
+  "printer_settings": {
+    "autoemit_temperature_commands": {
+      "type": "Bool"
+    },
+    "bed_custom_model": {
+      "type": "String"
+    },
+    "bed_custom_texture": {
+      "type": "String"
+    },
+    "bed_shape": {
+      "type": "Array",
+      "element": "Vec2d"
+    },
+    "before_layer_gcode": {
+      "type": "String"
+    },
+    "between_objects_gcode": {
+      "type": "String"
+    },
+    "binary_gcode": {
+      "type": "Bool"
+    },
+    "color_change_gcode": {
+      "type": "String"
+    },
+    "cooling_tube_length": {
+      "type": "Float"
+    },
+    "cooling_tube_retraction": {
+      "type": "Float"
+    },
+    "custom_parameters_printer": {
+      "type": "String"
+    },
+    "default_print": {
+      "type": "String"
+    },
+    "enable_pressure_advance_during_ramming": {
+      "type": "Bool"
+    },
+    "end_gcode": {
+      "type": "String"
+    },
+    "extra_loading_move": {
+      "type": "Float"
+    },
+    "extruder_clearance_height": {
+      "type": "Float"
+    },
+    "extruder_clearance_radius": {
+      "type": "Float"
+    },
+    "extruder_offset": {
+      "type": "Array",
+      "element": "Vec2d"
+    },
+    "filament_change_time": {
+      "type": "Float"
+    },
+    "gcode_flavor": {
+      "type": "Enum",
+      "values": [
+        "reprap",
+        "reprapfirmware",
+        "repetier",
+        "teacup",
+        "makerware",
+        "marlin",
+        "marlin2",
+        "prusabuddy",
+        "klipper",
+        "sailfish",
+        "mach3",
+        "machinekit",
+        "smoothie",
+        "no-extrusion"
+      ]
+    },
+    "high_current_on_filament_swap": {
+      "type": "Bool"
+    },
+    "layer_gcode": {
+      "type": "String"
+    },
+    "machine_limits_usage": {
+      "type": "Enum",
+      "values": [
+        "emit_to_gcode",
+        "time_estimate_only",
+        "ignore"
+      ]
+    },
+    "machine_max_acceleration_e": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_acceleration_extruding": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_acceleration_retracting": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_acceleration_travel": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_acceleration_x": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_acceleration_y": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_acceleration_z": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_feedrate_e": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_feedrate_x": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_feedrate_y": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_feedrate_z": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_jerk_e": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_jerk_x": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_jerk_y": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_jerk_z": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_max_junction_deviation": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_min_extruding_rate": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "machine_min_travel_rate": {
+      "type": "Array",
+      "element": "Float"
+    },
+    "max_print_height": {
+      "type": "Float"
+    },
+    "multimaterial_purging": {
+      "type": "Float"
+    },
+    "parking_pos_retraction": {
+      "type": "Float"
+    },
+    "pause_print_gcode": {
+      "type": "String"
+    },
+    "prefer_clockwise_movements": {
+      "type": "Bool"
+    },
+    "printer_model": {
+      "type": "String"
+    },
+    "printer_notes": {
+      "type": "String"
+    },
+    "printer_technology": {
+      "type": "Enum",
+      "values": [
+        "FFF",
+        "SLA"
+      ]
+    },
+    "printer_variant": {
+      "type": "String"
+    },
+    "printer_vendor": {
+      "type": "String"
+    },
+    "remaining_times": {
+      "type": "Bool"
+    },
+    "silent_mode": {
+      "type": "Bool"
+    },
+    "single_extruder_multi_material": {
+      "type": "Bool"
+    },
+    "start_gcode": {
+      "type": "String"
+    },
+    "stuck_filament_detection": {
+      "type": "Bool"
+    },
+    "template_custom_gcode": {
+      "type": "String"
+    },
+    "thumbnails": {
+      "type": "String"
+    },
+    "thumbnails_format": {
+      "type": "Enum",
+      "values": [
+        "PNG",
+        "JPG",
+        "QOI"
+      ]
+    },
+    "toolchange_gcode": {
+      "type": "String"
+    },
+    "use_firmware_retraction": {
+      "type": "Bool"
+    },
+    "use_relative_e_distances": {
+      "type": "Bool"
+    },
+    "use_volumetric_e": {
+      "type": "Bool"
+    },
+    "variable_layer_height": {
+      "type": "Bool"
+    },
+    "z_offset": {
+      "type": "Float"
+    }
+  },
+  "print_settings": {
+    "arc_fitting": {
+      "type": "Enum",
+      "values": [
+        "disabled",
+        "emit_center"
+      ]
+    },
+    "automatic_extrusion_widths": {
+      "type": "Bool"
+    },
+    "automatic_infill_combination": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "automatic_infill_combination_max_layer_height": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "avoid_crossing_curled_overhangs": {
+      "type": "Bool"
+    },
+    "avoid_crossing_perimeters": {
+      "type": "Bool"
+    },
+    "avoid_crossing_perimeters_max_detour": {
+      "type": "Float"
+    },
+    "bed_temperature_extruder": {
+      "type": "Int"
+    },
+    "bottom_fill_pattern": {
+      "type": "Enum",
+      "values": [
+        "rectilinear",
+        "monotonic",
+        "monotoniclines",
+        "alignedrectilinear",
+        "concentric",
+        "hilbertcurve",
+        "archimedeanchords",
+        "octagramspiral"
+      ],
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "bottom_solid_layers": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "bottom_solid_min_thickness": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "bridge_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "bridge_angle": {
+      "type": "Float",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "bridge_flow_ratio": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "bridge_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "brim_separation": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "brim_type": {
+      "type": "Enum",
+      "values": [
+        "no_brim",
+        "outer_only",
+        "inner_only",
+        "outer_and_inner"
+      ],
+      "overrides": [
+        "Object"
+      ]
+    },
+    "brim_width": {
+      "type": "Float",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "complete_objects": {
+      "type": "Bool"
+    },
+    "custom_parameters_print": {
+      "type": "String"
+    },
+    "default_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "default_material": {
+      "type": "String"
+    },
+    "default_tool_print": {
+      "type": "String"
+    },
+    "deretract_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "dont_support_bridges": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "draft_shield": {
+      "type": "Enum",
+      "values": [
+        "disabled",
+        "limited",
+        "enabled"
+      ]
+    },
+    "elefant_foot_compensation": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "enable_dynamic_overhang_speeds": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "ensure_vertical_shell_thickness": {
+      "type": "Enum",
+      "values": [
+        "disabled",
+        "partial",
+        "enabled"
+      ],
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "external_perimeter_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "external_perimeter_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "external_perimeter_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "external_perimeters_first": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "extra_perimeters": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "extra_perimeters_on_overhangs": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "fill_angle": {
+      "type": "Float",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "fill_density": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "fill_pattern": {
+      "type": "Enum",
+      "values": [
+        "rectilinear",
+        "alignedrectilinear",
+        "grid",
+        "triangles",
+        "stars",
+        "cubic",
+        "line",
+        "concentric",
+        "honeycomb",
+        "3dhoneycomb",
+        "gyroid",
+        "hilbertcurve",
+        "archimedeanchords",
+        "octagramspiral",
+        "adaptivecubic",
+        "supportcubic",
+        "lightning",
+        "zigzag"
+      ],
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "first_layer_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "first_layer_acceleration_over_raft": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "first_layer_external_perimeter_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "first_layer_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "first_layer_gap_fill_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "first_layer_height": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "first_layer_infill_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "first_layer_perimeter_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "first_layer_solid_infill_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "first_layer_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "first_layer_speed_over_raft": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "first_layer_support_material_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "first_layer_top_solid_infill_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "fuzzy_skin": {
+      "type": "Enum",
+      "values": [
+        "none",
+        "external",
+        "all"
+      ],
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "fuzzy_skin_point_dist": {
+      "type": "Float",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "fuzzy_skin_thickness": {
+      "type": "Float",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "gap_fill_enabled": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "gap_fill_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "gcode_comments": {
+      "type": "Bool"
+    },
+    "gcode_label_objects": {
+      "type": "Enum",
+      "values": [
+        "disabled",
+        "octoprint",
+        "firmware"
+      ]
+    },
+    "gcode_resolution": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "gcode_substitutions": {
+      "type": "Array",
+      "element": "String"
+    },
+    "infill_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "infill_anchor": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "infill_anchor_max": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "infill_every_layers": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "infill_extruder": {
+      "type": "Int",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "infill_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "infill_first": {
+      "type": "Bool"
+    },
+    "infill_overlap": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "infill_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "interface_shells": {
+      "type": "Bool",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "interlocking_beam": {
+      "type": "Bool",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "interlocking_beam_layer_count": {
+      "type": "Int",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "interlocking_beam_width": {
+      "type": "Float",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "interlocking_boundary_avoidance": {
+      "type": "Int",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "interlocking_depth": {
+      "type": "Int",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "interlocking_orientation": {
+      "type": "Float",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "ironing": {
+      "type": "Bool",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "ironing_flowrate": {
+      "type": "Percentage",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "ironing_spacing": {
+      "type": "Float",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "ironing_speed": {
+      "type": "Float",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "ironing_type": {
+      "type": "Enum",
+      "values": [
+        "top",
+        "topmost",
+        "solid"
+      ],
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "layer_height": {
+      "type": "Float",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "max_layer_height": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "max_print_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "max_volumetric_extrusion_rate_slope_negative": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "max_volumetric_extrusion_rate_slope_positive": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "max_volumetric_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "min_bead_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "min_feature_size": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "min_layer_height": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "min_skirt_length": {
+      "type": "Float"
+    },
+    "mmu_segmented_region_interlocking_depth": {
+      "type": "Float",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "mmu_segmented_region_max_width": {
+      "type": "Float",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "notes": {
+      "type": "String"
+    },
+    "only_one_perimeter_first_layer": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "only_retract_when_crossing_perimeters": {
+      "type": "Bool",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "ooze_prevention": {
+      "type": "Bool"
+    },
+    "output_filename_format": {
+      "type": "String"
+    },
+    "over_bridge_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "overhang_speed_0": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "overhang_speed_1": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "overhang_speed_2": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "overhang_speed_3": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "overhangs": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "perimeter_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "perimeter_extruder": {
+      "type": "Int",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "perimeter_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "perimeter_generator": {
+      "type": "Enum",
+      "values": [
+        "classic",
+        "arachne"
+      ],
+      "overrides": [
+        "Object"
+      ]
+    },
+    "perimeter_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "perimeters": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "post_process": {
+      "type": "Array",
+      "element": "String"
+    },
+    "raft_contact_distance": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "raft_expansion": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "raft_first_layer_density": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "raft_first_layer_expansion": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "raft_layers": {
+      "type": "Int",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "resolution": {
+      "type": "Float"
+    },
+    "retract_before_travel": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "retract_before_wipe": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "retract_layer_change": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "retract_length": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "retract_length_toolchange": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "retract_lift": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "retract_lift_above": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "retract_lift_below": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "retract_restart_extra": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "retract_restart_extra_toolchange": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "retract_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "scarf_seam_entire_loop": {
+      "type": "Bool",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "scarf_seam_length": {
+      "type": "Float",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "scarf_seam_max_segment_length": {
+      "type": "Float",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "scarf_seam_on_inner_perimeters": {
+      "type": "Bool",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "scarf_seam_only_on_smooth": {
+      "type": "Bool",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "scarf_seam_placement": {
+      "type": "Enum",
+      "values": [
+        "nowhere",
+        "contours",
+        "everywhere"
+      ],
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "scarf_seam_start_height": {
+      "type": "Percentage",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "seam_gap_distance": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Filament"
+      ]
+    },
+    "seam_position": {
+      "type": "Enum",
+      "values": [
+        "random",
+        "nearest",
+        "aligned",
+        "rear"
+      ],
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "single_extruder_multi_material_priming": {
+      "type": "Bool"
+    },
+    "skirt_distance": {
+      "type": "Float"
+    },
+    "skirt_height": {
+      "type": "Int"
+    },
+    "skirts": {
+      "type": "Int"
+    },
+    "slice_closing_radius": {
+      "type": "Float",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "slicing_mode": {
+      "type": "Enum",
+      "values": [
+        "regular",
+        "even_odd",
+        "close_holes"
+      ],
+      "overrides": [
+        "Object"
+      ]
+    },
+    "small_perimeter_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "solid_infill_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "solid_infill_below_area": {
+      "type": "Float",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "solid_infill_every_layers": {
+      "type": "Int",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "solid_infill_extruder": {
+      "type": "Int",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "solid_infill_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "solid_infill_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "spiral_vase": {
+      "type": "Bool"
+    },
+    "staggered_inner_seams": {
+      "type": "Bool",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "standby_temperature_delta": {
+      "type": "Int"
+    },
+    "support_material": {
+      "type": "Enum",
+      "values": [
+        "none",
+        "enforcers_only",
+        "everywhere"
+      ],
+      "overrides": [
+        "Object"
+      ]
+    },
+    "support_material_angle": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_bottom_contact_distance": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_bottom_interface_layers": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_buildplate_only": {
+      "type": "Bool",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "support_material_closing_radius": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_contact_distance": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_enforce_layers": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_extruder": {
+      "type": "Int",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "support_material_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_first_layer_density": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_first_layer_expansion": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_interface_contact_loops": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_interface_extruder": {
+      "type": "Int",
+      "overrides": [
+        "Object"
+      ]
+    },
+    "support_material_interface_layers": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_interface_pattern": {
+      "type": "Enum",
+      "values": [
+        "auto",
+        "rectilinear",
+        "concentric"
+      ],
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_interface_spacing": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_interface_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_pattern": {
+      "type": "Enum",
+      "values": [
+        "rectilinear",
+        "rectilinear-grid",
+        "honeycomb"
+      ],
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_spacing": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_style": {
+      "type": "Enum",
+      "values": [
+        "grid",
+        "snug",
+        "organic"
+      ],
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_synchronize_layers": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_threshold": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_with_sheath": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_material_xy_spacing": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_tree_angle": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_tree_angle_slow": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_tree_branch_diameter": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_tree_branch_diameter_angle": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_tree_branch_diameter_double_wall": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_tree_branch_distance": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_tree_tip_diameter": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "support_tree_top_rate": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "thick_bridges": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "thin_walls": {
+      "type": "Bool",
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "toolchange_ordering": {
+      "type": "Enum",
+      "values": [
+        "optimized",
+        "cyclic"
+      ],
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "top_fill_pattern": {
+      "type": "Enum",
+      "values": [
+        "rectilinear",
+        "monotonic",
+        "monotoniclines",
+        "alignedrectilinear",
+        "concentric",
+        "hilbertcurve",
+        "archimedeanchords",
+        "octagramspiral"
+      ],
+      "overrides": [
+        "Object",
+        "Volume"
+      ]
+    },
+    "top_infill_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "top_one_perimeter_type": {
+      "type": "Enum",
+      "values": [
+        "none",
+        "top",
+        "topmost"
+      ],
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "top_solid_infill_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "top_solid_infill_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "top_solid_layers": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "top_solid_min_thickness": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ]
+    },
+    "travel_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "travel_lift_before_obstacle": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "travel_max_lift": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "travel_ramping_lift": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "travel_short_distance_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "travel_slope": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "travel_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "travel_speed_z": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "wall_distribution_count": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "wall_transition_angle": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "wall_transition_filter_deviation": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "wall_transition_length": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ]
+    },
+    "wipe": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ]
+    },
+    "wipe_tower": {
+      "type": "Bool"
+    },
+    "wipe_tower_acceleration": {
+      "type": "Float"
+    },
+    "wipe_tower_bridging": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "wipe_tower_brim_width": {
+      "type": "Float"
+    },
+    "wipe_tower_cone_angle": {
+      "type": "Float"
+    },
+    "wipe_tower_extra_flow": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "wipe_tower_extra_spacing": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool"
+      ]
+    },
+    "wipe_tower_extruder": {
+      "type": "Int"
+    },
+    "wipe_tower_no_sparse_layers": {
+      "type": "Bool"
+    },
+    "wipe_tower_width": {
+      "type": "Float"
+    },
+    "xy_size_compensation": {
+      "type": "Float",
+      "overrides": [
+        "Object"
+      ]
+    }
+  },
+  "toolprint_settings": {
+    "automatic_infill_combination": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "automatic_infill_combination_max_layer_height": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "bottom_solid_layers": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "bottom_solid_min_thickness": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "bridge_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "bridge_flow_ratio": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "bridge_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "brim_separation": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "default_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "deretract_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "dont_support_bridges": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "elefant_foot_compensation": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "enable_dynamic_overhang_speeds": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "external_perimeter_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "external_perimeter_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "external_perimeter_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "external_perimeters_first": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "extra_perimeters": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "extra_perimeters_on_overhangs": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "fill_density": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "fill_pattern": {
+      "type": "Enum",
+      "values": [
+        "rectilinear",
+        "alignedrectilinear",
+        "grid",
+        "triangles",
+        "stars",
+        "cubic",
+        "line",
+        "concentric",
+        "honeycomb",
+        "3dhoneycomb",
+        "gyroid",
+        "hilbertcurve",
+        "archimedeanchords",
+        "octagramspiral",
+        "adaptivecubic",
+        "supportcubic",
+        "lightning",
+        "zigzag"
+      ],
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "first_layer_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "first_layer_acceleration_over_raft": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "first_layer_external_perimeter_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "first_layer_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "first_layer_gap_fill_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "first_layer_height": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "first_layer_infill_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "first_layer_perimeter_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "first_layer_solid_infill_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "first_layer_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "first_layer_speed_over_raft": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "first_layer_support_material_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "first_layer_top_solid_infill_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "gap_fill_enabled": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "gap_fill_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "gcode_resolution": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "infill_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "infill_anchor": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "infill_anchor_max": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "infill_every_layers": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "infill_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "infill_overlap": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "infill_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "max_layer_height": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "max_print_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "max_volumetric_extrusion_rate_slope_negative": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "max_volumetric_extrusion_rate_slope_positive": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "max_volumetric_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "min_bead_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "min_feature_size": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "min_layer_height": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "only_one_perimeter_first_layer": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "only_retract_when_crossing_perimeters": {
+      "type": "Bool",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "over_bridge_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "overhang_speed_0": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "overhang_speed_1": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "overhang_speed_2": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "overhang_speed_3": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "overhangs": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "perimeter_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "perimeter_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "perimeter_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "perimeters": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "raft_contact_distance": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "raft_expansion": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "raft_first_layer_density": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "raft_first_layer_expansion": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "retract_before_travel": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_before_wipe": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_layer_change": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_length": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_length_toolchange": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_lift": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_lift_above": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_lift_below": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_restart_extra": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_restart_extra_toolchange": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "seam_position": {
+      "type": "Enum",
+      "values": [
+        "random",
+        "nearest",
+        "aligned",
+        "rear"
+      ],
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "small_perimeter_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "solid_infill_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "solid_infill_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "solid_infill_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "support_material_angle": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_bottom_contact_distance": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_bottom_interface_layers": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_closing_radius": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_contact_distance": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_enforce_layers": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_first_layer_density": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_first_layer_expansion": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_interface_contact_loops": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_interface_layers": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_interface_pattern": {
+      "type": "Enum",
+      "values": [
+        "auto",
+        "rectilinear",
+        "concentric"
+      ],
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_interface_spacing": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_interface_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_pattern": {
+      "type": "Enum",
+      "values": [
+        "rectilinear",
+        "rectilinear-grid",
+        "honeycomb"
+      ],
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_spacing": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_style": {
+      "type": "Enum",
+      "values": [
+        "grid",
+        "snug",
+        "organic"
+      ],
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_synchronize_layers": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_threshold": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_with_sheath": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_material_xy_spacing": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_tree_angle": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_tree_angle_slow": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_tree_branch_diameter": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_tree_branch_diameter_angle": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_tree_branch_diameter_double_wall": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_tree_branch_distance": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_tree_tip_diameter": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "support_tree_top_rate": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "thick_bridges": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "toolchange_ordering": {
+      "type": "Enum",
+      "values": [
+        "optimized",
+        "cyclic"
+      ],
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "top_infill_extrusion_width": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "top_one_perimeter_type": {
+      "type": "Enum",
+      "values": [
+        "none",
+        "top",
+        "topmost"
+      ],
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "top_solid_infill_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "top_solid_infill_speed": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "top_solid_layers": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "top_solid_min_thickness": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object",
+        "Volume"
+      ],
+      "nullable": true
+    },
+    "travel_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "travel_lift_before_obstacle": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "travel_max_lift": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "travel_ramping_lift": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "travel_short_distance_acceleration": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "travel_slope": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "travel_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "travel_speed_z": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "wall_distribution_count": {
+      "type": "Int",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "wall_transition_angle": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "wall_transition_filter_deviation": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "wall_transition_length": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Tool",
+        "Object"
+      ],
+      "nullable": true
+    },
+    "wipe": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "wipe_tower_bridging": {
+      "type": "Float",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "wipe_tower_extra_flow": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    },
+    "wipe_tower_extra_spacing": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool"
+      ],
+      "nullable": true
+    }
+  },
+  "filament_settings": {
+    "bed_temperature": {
+      "type": "Int"
+    },
+    "bridge_fan_speed": {
+      "type": "Int"
+    },
+    "chamber_minimal_temperature": {
+      "type": "Int"
+    },
+    "chamber_temperature": {
+      "type": "Int"
+    },
+    "cooling": {
+      "type": "Bool"
+    },
+    "cooling_perimeter_transition_distance": {
+      "type": "Float"
+    },
+    "cooling_slowdown_logic": {
+      "type": "Enum",
+      "values": [
+        "uniform_cooling",
+        "consistent_surface"
+      ]
+    },
+    "custom_parameters_filament": {
+      "type": "String"
+    },
+    "disable_fan_first_layers": {
+      "type": "Int"
+    },
+    "enable_dynamic_fan_speeds": {
+      "type": "Bool"
+    },
+    "end_filament_gcode": {
+      "type": "String"
+    },
+    "extrusion_multiplier": {
+      "type": "Float"
+    },
+    "fan_always_on": {
+      "type": "Bool"
+    },
+    "fan_below_layer_time": {
+      "type": "Int"
+    },
+    "filament_abrasive": {
+      "type": "Bool"
+    },
+    "filament_colour": {
+      "type": "String"
+    },
+    "filament_cooling_final_speed": {
+      "type": "Float"
+    },
+    "filament_cooling_initial_speed": {
+      "type": "Float"
+    },
+    "filament_cooling_moves": {
+      "type": "Int"
+    },
+    "filament_cost": {
+      "type": "Float"
+    },
+    "filament_density": {
+      "type": "Float"
+    },
+    "filament_diameter": {
+      "type": "Float"
+    },
+    "filament_flush_speed": {
+      "type": "Float"
+    },
+    "filament_flush_volume": {
+      "type": "Float"
+    },
+    "filament_infill_max_crossing_speed": {
+      "type": "Float"
+    },
+    "filament_infill_max_speed": {
+      "type": "Float"
+    },
+    "filament_loading_speed": {
+      "type": "Float"
+    },
+    "filament_loading_speed_start": {
+      "type": "Float"
+    },
+    "filament_max_volumetric_speed": {
+      "type": "Float"
+    },
+    "filament_minimal_purge_on_wipe_tower": {
+      "type": "Float"
+    },
+    "filament_multitool_ramming": {
+      "type": "Bool"
+    },
+    "filament_multitool_ramming_flow": {
+      "type": "Float"
+    },
+    "filament_multitool_ramming_volume": {
+      "type": "Float"
+    },
+    "filament_notes": {
+      "type": "String"
+    },
+    "filament_purge_multiplier": {
+      "type": "Percentage"
+    },
+    "filament_ramming_initial_delay": {
+      "type": "Float"
+    },
+    "filament_ramming_parameters": {
+      "type": "String"
+    },
+    "filament_ramming_temperature_delta": {
+      "type": "Int"
+    },
+    "filament_shrinkage_compensation_xy": {
+      "type": "Percentage"
+    },
+    "filament_shrinkage_compensation_z": {
+      "type": "Percentage"
+    },
+    "filament_soluble": {
+      "type": "Bool"
+    },
+    "filament_spool_weight": {
+      "type": "Float"
+    },
+    "filament_stamping_distance": {
+      "type": "Float"
+    },
+    "filament_stamping_loading_speed": {
+      "type": "Float"
+    },
+    "filament_toolchange_delay": {
+      "type": "Float"
+    },
+    "filament_type": {
+      "type": "String"
+    },
+    "filament_unloading_speed": {
+      "type": "Float"
+    },
+    "filament_unloading_speed_start": {
+      "type": "Float"
+    },
+    "filament_vendor": {
+      "type": "String"
+    },
+    "first_layer_bed_temperature": {
+      "type": "Int"
+    },
+    "first_layer_temperature": {
+      "type": "Int"
+    },
+    "full_fan_speed_layer": {
+      "type": "Int"
+    },
+    "idle_temperature": {
+      "type": "OptInt"
+    },
+    "max_fan_speed": {
+      "type": "Int"
+    },
+    "min_fan_speed": {
+      "type": "Int"
+    },
+    "min_print_speed": {
+      "type": "Float"
+    },
+    "overhang_fan_speed_0": {
+      "type": "Int"
+    },
+    "overhang_fan_speed_1": {
+      "type": "Int"
+    },
+    "overhang_fan_speed_2": {
+      "type": "Int"
+    },
+    "overhang_fan_speed_3": {
+      "type": "Int"
+    },
+    "pressure_advance": {
+      "type": "Enum",
+      "values": [
+        "disabled",
+        "enabled",
+        "automatic_calibration"
+      ]
+    },
+    "pressure_advance_value": {
+      "type": "Float"
+    },
+    "slowdown_below_layer_time": {
+      "type": "Int"
+    },
+    "start_filament_gcode": {
+      "type": "String"
+    },
+    "temperature": {
+      "type": "Int"
+    },
+    "deretract_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_before_travel": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_before_wipe": {
+      "type": "Percentage",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_layer_change": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_length": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_length_toolchange": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_lift": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_lift_above": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_lift_below": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_restart_extra": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_restart_extra_toolchange": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "retract_speed": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "seam_gap_distance": {
+      "type": "FloatOrPercentage",
+      "overrides": [
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "travel_lift_before_obstacle": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "travel_max_lift": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "travel_ramping_lift": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "travel_slope": {
+      "type": "Float",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    },
+    "wipe": {
+      "type": "Bool",
+      "overrides": [
+        "Tool",
+        "Filament"
+      ],
+      "nullable": true
+    }
+  }
+}

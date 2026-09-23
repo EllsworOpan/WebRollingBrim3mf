@@ -1,6 +1,6 @@
 # Rolling Brim 3MF
 
-A browser workbench for adding rolling-brim **mesh parts** to STL, OBJ and 3MF models. Each selected model gets its own aligned brim part and slicer-specific overrides in a downloadable 3MF for PrusaSlicer, Bambu Studio or OrcaSlicer. Built from WebRollingBrim's interface and rolling-circle geometry.
+A browser workbench for adding rolling-brim **mesh parts** to STL, OBJ and 3MF models. Each selected model gets its own aligned brim part and slicer-specific overrides in a downloadable 3MF for PrusaSlicer 2.x, Bambu Studio or OrcaSlicer. Native PrusaSlicer **3.0.0-alpha12** projects also have experimental support with strict compatibility checks. Built from WebRollingBrim's interface and rolling-circle geometry.
 
 **Files stay in your browser.** Import, preview, brim generation and export run locally on your device. Heavy geometry processing runs in a Web Worker. No backend, account or model upload is required, including on GitHub Pages.
 
@@ -102,6 +102,8 @@ The original clearance-test-plate STL is included. With a 10 mm rolling diameter
 
 **Elephant-foot compensation (`elefant_foot_compensation`) is set to 0 on every exported printable object**, covering the original model and its brim. This is the only existing slicer setting the app adds or overwrites. The global print profile is retained, including its own compensation value. General XY size compensation (`xy_size_compensation`) is unchanged.
 
+PrusaSlicer 3 also permits a positive model volume to override its parent's compensation, so its exporter sets that volume-level value to 0 as well. Nonprintable instances keep their original compensation settings.
+
 Other settings, including speeds and perimeter generation, inherit from the existing project or the user's chosen slicer profile. Generated files from STL do not inject a printer or filament profile. First-layer height is an assumption for geometry; the app does not overwrite the project's print profile.
 
 **Print order is controlled by the slicer.** The validation fixture starts with brim paths, but brim-first ordering is not guaranteed. The app does not claim that part-list ordering forces it. The slicer also decides seam placement, perimeter widths, small-feature treatment and the sequence of loops. A solid brim band filled with perimeters is not an exact reproduction of the previous app's hand-planned paths.
@@ -122,6 +124,16 @@ STL, OBJ and unconfigured generic 3MF inputs have an **Output slicer** choice. T
 
 Existing toolpaths, slice caches and plate thumbnails are removed from Bambu/Orca downloads because they describe the original geometry. Advanced assembly-tree JSON projects, legacy combined-mesh part layouts and unknown required 3MF extensions are rejected with guidance. Bed exclusion zones are reported for review in the slicer; the geometry engine still clips only to the stored outer bed outline. Rafts remain unsupported.
 
+### PrusaSlicer 3.0 alpha12 beds
+
+Open a native **3.0.0-alpha12** project and use **Working plate** to select a bed. The same one-plate workflow applies: preview and generate on the selected bed, then download a separate native 3.0 project containing only that bed and all its objects. Different beds can use different printer profiles and first-layer heights; the selected bed supplies its own outline and suggested height. Models must fit wholly inside exactly one nonoverlapping rectangular bed.
+
+This experimental adapter supports single-tool, single-material FFF projects, repeated/nonprintable instances, transformed parts, negative volumes, modifiers, painted facets and per-object/per-volume overrides. It preserves the selected bed's configuration, preset references and custom layer G-code, and removes stale thumbnails. Painting is preserved but is not rendered in this workbench.
+
+**Unsupported projects are rejected**, with an explanation, before geometry processing. This includes other Prusa 3 versions, unknown structural fields/settings, changed setting types, additional archive features, multiple tools/materials, SLA, virtual extruders, wipe towers, vase mode, rafts, nonrectangular/overlapping beds, objects outside or crossing beds, variable layer-height profiles, height ranges, cut information and editable text/embossing metadata. There is no fallback to generic geometry. Alpha12's existing `project.version` is a save counter, not a format version; detection also verifies the Application tag and project structure.
+
+Native Prusa 3 output is available only for supported native input. STL/OBJ/generic 3MF output still offers PrusaSlicer 2.x, Bambu Studio and OrcaSlicer. See the [supported format and validation details](docs/prusaslicer-3-readiness.md).
+
 ### Shared behavior and other formats
 
 - STL: binary and ASCII, assumed millimetres, translated vertically onto Z=0. Model XY coordinates are kept. Identical triangle corners share vertex indices in 3MF; distinct coordinates are not rounded or welded by proximity. Triangles with coincident corners are discarded, while collinear triangles with three distinct corners are retained to preserve connections. Closed shells that meet along an edge retain separate topology.
@@ -131,13 +143,14 @@ Existing toolpaths, slice caches and plate thumbnails are removed from Bambu/Orc
 - The new brim mesh is appended in each parent's coordinates with its own part settings. Native PrusaSlicer instance references are supported; independent instance brims receive separate mesh resources when needed. Nonprintable build items are kept unchanged.
 - Model scaling is respected, including uniform, nonuniform, rotated and mirrored scales. Brim height, width and gap are measured in final print millimetres. The exporter applies the inverse parent transform to the new brim, so scaling a model up does not scale a 0.2 mm brim into multiple layers. Rescaling the entire object afterward in the slicer also rescales its attached parts; regenerate from the original model at the new scale if the brim dimensions must remain fixed.
 - Every preview and export starts from the clean imported checkpoint. Changing options never accumulates brim geometry or edits the original upload. STL/OBJ inputs keep their imported meshes as the checkpoint; there is no need for an intermediate 3MF conversion. Upload a model without a brim: the app does not detect, remove or replace existing brim geometry. To adjust an export, keep editing the original upload in the workbench.
-- PrusaSlicer thumbnails are retained and can show the input before the new brim. Bambu/Orca exports remove stale plate thumbnails and sliced output; the slicer regenerates them.
+- PrusaSlicer 2.x thumbnails are retained and can show the input before the new brim. PrusaSlicer 3 and Bambu/Orca exports remove stale thumbnails; Bambu/Orca also remove sliced output. The slicer regenerates them.
 - Known project bed boundaries clip the brim. Files without bed metadata have no bed clipping. Existing native brim and general XY size compensation settings are retained, with notes where detected. Elephant-foot compensation is overridden to 0 per object.
 - Rolling-circle accessibility and the brim band use only the current object's printable parts. Separate objects are never obstacles, bridge endpoints or clipping masks for each other. Overlapping brims remain complete in their respective 3MF parts; no shared-area ownership or overlap cleanup is applied. An unchecked object receives no new brim part.
 
 ### Current limits
 
-- Targeted and tested with **PrusaSlicer 2.9.6**. Bambu Studio **2.8.2.61** and OrcaSlicer **2.4.2** native projects are also tested. Their internal `.model` resources and 3MF production extension are supported. Unknown mandatory extensions and annotated generic component assemblies remain unsupported. Native PrusaSlicer instance aliases retain their original configured mesh and painting.
+- PrusaSlicer 3 support is pinned to **3.0.0-alpha12** and the subset above. Future alphas/releases must be validated before being enabled. PrusaSlicer 2.x projects do not have a selectable-bed workflow in this app.
+- Targeted and tested with **PrusaSlicer 2.9.6** and the supported subset of **3.0.0-alpha12**. Bambu Studio **2.8.2.61** and OrcaSlicer **2.4.2** native projects are also tested. Bambu/Orca internal `.model` resources and the 3MF production extension are supported. Unknown mandatory extensions and annotated generic component assemblies remain unsupported. Native PrusaSlicer 2.x instance aliases retain their original configured mesh and painting.
 - Repeated instances with custom layer-height profiles/ranges must be made independent objects in PrusaSlicer before processing. Slicer-configured component assemblies also require a normal PrusaSlicer save.
 - Rafts are unsupported. 3MF placements are respected; a floating model with no section at the sampling height gets no brim. Automatic orientation, mesh repair, arrangement and support generation are outside this workbench.
 - Open or inconsistently oriented cross-sections are reported instead of guessing a closure. The model should be repaired and saved in the slicer. Apart from STL triangles with coincident corners, degenerate or nonmanifold input is not automatically repaired.
@@ -159,6 +172,8 @@ Hardening regressions check closed, consistently oriented brim meshes across wid
 When PrusaSlicer is installed at its usual Windows path, the integration test also opens and saves a generated two-object project, verifies the saved per-part settings, and slices it. Every identified brim extrusion must be a perimeter on the first layer. Set `PRUSA_SLICER` to a console executable elsewhere to enable this test; without a slicer the integration test is explicitly skipped.
 
 Bambu/Orca tests cover four-plate projects, plate switching, shared painted meshes, nonprintable instances, native part settings, metadata remapping and removal of stale sliced output. Checked-in fixtures were saved by both slicers. Set `BAMBU_STUDIO` and `ORCA_SLICER` to their executables to enable native integration tests (portable copies in `.local/bambu/` and `.local/orca/` are also detected). These reopen selected-plate exports and independently slice generated brims, checking that brim extrusion uses wall paths on the first layer only.
+
+Prusa 3 tests use alpha12-saved fixtures with three beds, two printer profiles, painting, all five part roles and repeated/nonprintable instances. They verify selected-bed export, settings and triangle-corner preservation, immutable source data and rejection of unsupported/changed formats. Set `PRUSA_SLICER3` to the alpha12 executable (or place its portable Windows distribution in `.local/prusa3/PrusaSlicer-3.0.0-alpha12/`) to enable native round-trip and G-code checks. These use a separate test data directory, reopen each bed's export and slice scaled/mirrored brims at both 0.2 and 0.3 mm. No user's slicer profile is modified.
 
 Painting tests compare original face attributes against their exact ordered triangle corners, all original part roles/settings, and unrelated archive entries byte-for-byte. Checked-in [painted fixtures](tests/fixtures/README.md) exercise real PrusaSlicer serialization on CI. Installed-slicer tests independently open/save MMU, support, seam and fuzzy-skin painting, verify the loaded filament palette and print/printer settings, retain variable layer heights and height-range overrides, and test a selected mirrored instance. A control save accounts for PrusaSlicer's own metadata normalization.
 

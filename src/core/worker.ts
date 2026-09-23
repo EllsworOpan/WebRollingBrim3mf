@@ -44,7 +44,7 @@ self.onmessage = ({ data }: MessageEvent<WorkerRequest>) => {
       const result = generateBrims(project, data.settings, data.enabled);
       if (data.type === 'generate') send({ type: 'generated', id: data.id, result });
       else {
-        const slicer = data.format || (project.format === 'bambu' || project.format === 'orca' ? project.format : 'prusa');
+        const slicer = data.format || (project.format && project.format !== 'generic' ? project.format : 'prusa');
         const plateId = project.activePlateId, plate = project.plates?.find(p => p.id === plateId);
         const suffix = plate ? `-${plate.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '-').trim() || `plate-${plate.id}`}` : '';
         send({ type: 'exported', id: data.id, bytes: exportProject(project, result, slicer), slicer, filename: `${project.name.replace(/\.(stl|obj|3mf)$/i, '')}${suffix}-rolling-brim.3mf` });

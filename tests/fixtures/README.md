@@ -16,3 +16,14 @@ Both were saved by PrusaSlicer 2.9.6. Its CLI `--export-3mf` omits the global pr
 To reproduce, run `npm run test -- tests/painting-slicer.integration.test.ts` with PrusaSlicer installed (or set `PRUSA_SLICER`). Copy `.local/painting/baseline.3mf` and `.local/painting/instances-seed-saved.3mf` to the corresponding files here. Unit tests use these committed files on CI even without a slicer installation.
 
 Painting encodings follow PrusaSlicer's [3MF implementation](https://github.com/prusa3d/PrusaSlicer/blob/version_2.9.6/src/libslic3r/Format/3mf.cpp) and [TriangleSelector serialization](https://github.com/prusa3d/PrusaSlicer/blob/version_2.9.6/src/libslic3r/TriangleSelector.cpp). Tests compare each encoded value with its ordered triangle corners; merely finding paint strings in the archive would not prove that painting remains on the correct face.
+
+## PrusaSlicer 3.0.0-alpha12
+
+- `box-prusa3-alpha12.3mf`: original 20 × 20 × 10 mm box, saved by the official alpha12 CLI with its bundled Prusa MINI 0.4, 0.20mm STRUCTURAL and Prusament PLA profiles.
+- `painted-plates-prusa3-alpha12.3mf`: the same original box geometry, assembled by `prusa3Fixture` in `tests/prusa3-fixtures.ts`, then saved by alpha12. It has two MINI beds and one CORE One bed with a different first-layer height. It includes all five volume roles, shared meshes, all four painting channels with partial-face subdivisions, a mirrored/nonuniformly scaled instance, a nonprintable copy, object/volume overrides and bed-specific custom G-code.
+
+Both are development fixtures; they contain bundled slicer preset data and no user models, credentials or profiles. Original source paths were replaced with `original-box.stl`. The fixture geometry is original to this repository. The executable and full preset distribution are not committed.
+
+To regenerate, use alpha12 with a separate `--datadir` and create MINI and CORE One box seeds using `--export-3mf --dont-arrange --no-ensure-on-bed`, selecting the bundled printer/print/material profiles. For the CORE seed use `Prusa CORE One 0.4 HF`, `0.15mm STRUCTURAL @COREONE 0.4HF` and `Prusament PLA @COREONE HF0.4@COREONE 0.4`. Pass both seed archives to `prusa3Fixture`, then open/save its output using the same CLI flags. Keep resources in dependency order and scrub source file paths before committing. Alpha12 normalizes bed origins and updates object placement on save; the saved fixture intentionally tests the slicer's native result.
+
+Unit tests always exercise these committed fixtures. Set `PRUSA_SLICER3` to alpha12 (or use `.local/prusa3/PrusaSlicer-3.0.0-alpha12/PrusaSlicer.exe`) to enable `tests/prusa3-slicer.integration.test.ts`. It reopens every selected-bed export and verifies native settings/painting/placement, then checks actual perimeter-only brim extrusion at two heights with mirrored, scaled geometry. It writes only to ignored `.local/prusa3-validation/` and uses its own profile store.

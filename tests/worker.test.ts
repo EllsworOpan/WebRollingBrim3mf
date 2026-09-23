@@ -69,6 +69,15 @@ describe('model worker lifecycle', () => {
     expect(send({type:'generate',id:5,settings:DEFAULT_BRIM,enabled:['object-0']})).toMatchObject({type:'generated'});
   });
 
+  it('rejects PrusaSlicer 3 metadata without retaining a previous exportable checkpoint', () => {
+    send({type:'load',id:1,name:'old.stl',bytes:stl(box())});
+    const files = unzipSync(new Uint8Array(paintedSeed('')));
+    files['Metadata/PrusaSlicer3_project.json'] = strToU8('{"config_containers":[]}');
+    expect(send({type:'load',id:2,name:'prusa3.3mf',bytes:zipSync(files).slice().buffer})).toMatchObject({type:'error',message:expect.stringContaining('PrusaSlicer 3.0')});
+    expect(send({type:'export',id:3,settings:DEFAULT_BRIM,enabled:['object-0']})).toMatchObject({type:'error',message:expect.stringContaining('Load a model')});
+    expect(send({type:'load',id:4,name:'new.stl',bytes:stl(box())})).toMatchObject({type:'loaded'});
+  });
+
   it('switches plates from the immutable upload and exports only the active plate', () => {
     const bytes = nativeFixture();
     expect(send({type:'load',id:1,name:'multi.3mf',bytes})).toMatchObject({type:'loaded',project:{activePlateId:'1',format:'orca'}});
@@ -94,6 +103,25 @@ describe('model worker lifecycle', () => {
     await vi.runAllTimersAsync();
     expect(scope.postMessage.mock.calls.some(([r]) => r.type === 'maximized')).toBe(false);
     expect(send({type:'generate',id:4,settings:DEFAULT_BRIM,enabled:['object-1']})).toMatchObject({type:'generated',result:{objects:expect.arrayContaining([expect.objectContaining({id:'object-1'})])}});
+  });
+
+  it('uses the selected Prusa 3 bed and its native format after switching away and back', () => {
+    const bytes = new Uint8Array(readFileSync('tests/fixtures/painted-plates-prusa3-alpha12.3mf')).buffer;
+    expect(send({type:'load',id:1,name:'alpha12.3mf',bytes})).toMatchObject({type:'loaded',project:{format:'prusa3',activePlateId:'1'}});
+    const selected = send({type:'plate',id:2,plateId:'3'});
+    if (selected.type !== 'loaded') throw new Error('Expected selected bed');
+    expect(selected.project.suggestedHeight).toBe(0.3);
+    const enabled = selected.project.objects.map(o => o.id);
+    const first = send({type:'export',id:3,settings:{...DEFAULT_BRIM,height:0.3},enabled});
+    if (first.type !== 'exported') throw new Error('Expected native export');
+    expect(first.filename).toMatch(/^alpha12-Bed 3.*rolling-brim\.3mf$/);
+    expect(importProject('export.3mf',first.bytes.slice().buffer)).toMatchObject({format:'prusa3',plates:[{objectCount:3}]});
+    send({type:'plate',id:4,plateId:'1'});
+    send({type:'generate',id:5,settings:{...DEFAULT_BRIM,width:8},enabled:['object-0']});
+    send({type:'plate',id:6,plateId:'3'});
+    const second = send({type:'export',id:7,settings:{...DEFAULT_BRIM,height:0.3},enabled});
+    if (second.type !== 'exported') throw new Error('Expected repeated native export');
+    expect(unzipSync(second.bytes)).toEqual(unzipSync(first.bytes));
   });
 
   it('switches painted instances across previews and exports without leaking brims or changing original parts', () => {
