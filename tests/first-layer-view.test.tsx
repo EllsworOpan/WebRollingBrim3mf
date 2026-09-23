@@ -38,7 +38,9 @@ describe('overlapping objects in the footprint preview', () => {
 
 describe('uncovered footprint highlighting', () => {
   const rings = subtractPolygons([rectangle(20,20,80,80)],[rectangle(30,30,60,60)]);
-  const result = generateBrims(project([extrude(rings,2),box(120,20)]),DEFAULT_BRIM,['object-1']);
+  const p = project([extrude(rings,2),box(120,20)]);
+  p.bed = rectangle(110,0,60,60);
+  const result = generateBrims(p,DEFAULT_BRIM);
   const render = (showUncovered: boolean, showBrim = true) => {
     const markup = renderToStaticMarkup(<FirstLayerView result={result} bed={[]} showBrim={showBrim} showUncovered={showUncovered} compare={true} probe={false} fitKey={0} selected="object-1"/>);
     return Array.from(new DOMParser().parseFromString(markup,'text/html').getElementsByTagName('path'));
@@ -61,5 +63,9 @@ describe('uncovered footprint highlighting', () => {
     const brimHidden = render(true,false);
     expect(brimHidden.some(p=>p.getAttribute('aria-label')==='Uncovered footprints')).toBe(true);
     expect(brimHidden.some(p=>p.getAttribute('fill')==='#ffb454')).toBe(false);
+  });
+  it('does not hatch unchecked objects', () => {
+    const markup = renderToStaticMarkup(<FirstLayerView result={generateBrims(p,DEFAULT_BRIM,['object-1'])} bed={p.bed} showBrim={true} showUncovered={true} compare={false} probe={false} fitKey={0} selected={null}/>);
+    expect(markup).not.toContain('aria-label="Uncovered footprints"');
   });
 });

@@ -20,7 +20,34 @@ describe('model worker lifecycle', () => {
     vi.stubGlobal('self', scope);
     await import('../src/core/worker');
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it('reports optimization progress and returns a verified preview that can be exported', async () => {
+    vi.useFakeTimers();
+    send({type:'load',id:1,name:'box.stl',bytes:stl(box())});
+    expect(send({type:'maximize',id:2,settings:DEFAULT_BRIM,enabled:['object-0']})).toMatchObject({type:'maximizing',progress:{diameter:0.05}});
+    await vi.runAllTimersAsync();
+    const response = scope.postMessage.mock.lastCall![0] as WorkerResponse;
+    expect(response).toMatchObject({type:'maximized',id:2,outcome:{status:'found',atLimit:true}});
+    if (response.type !== 'maximized' || response.outcome.status !== 'found') throw new Error('Expected optimized preview');
+    expect(response.outcome.result.settings.diameter).toBe(100);
+    expect(response.outcome.result.objects[0].uncovered).toEqual([]);
+    expect(send({type:'export',id:3,settings:response.outcome.result.settings,enabled:['object-0']})).toMatchObject({type:'exported'});
+  });
+
+  it.each(['cancel','generate','load'] as const)('supersedes a running search on %s without emitting a stale result', async type => {
+    vi.useFakeTimers();
+    send({type:'load',id:1,name:'box.stl',bytes:stl(box())});
+    send({type:'maximize',id:2,settings:DEFAULT_BRIM,enabled:['object-0']});
+    if (type === 'cancel') expect(send({type,id:3})).toMatchObject({type:'cancelled'});
+    else if (type === 'load') send({type,id:3,name:'replacement.stl',bytes:stl(box(80,20))});
+    else send({type,id:3,settings:{...DEFAULT_BRIM,diameter:2},enabled:['object-0']});
+    const calls = scope.postMessage.mock.calls.length;
+    await vi.runAllTimersAsync();
+    expect(scope.postMessage).toHaveBeenCalledTimes(calls);
+    expect(scope.postMessage.mock.calls.some(([r])=>r.type==='maximized')).toBe(false);
+    expect(send({type:'generate',id:4,settings:DEFAULT_BRIM,enabled:['object-0']})).toMatchObject({type:'generated'});
+  });
 
   it('rejects requests without a loaded model and recovers after an invalid setting', () => {
     expect(send({type:'generate',id:1,settings:DEFAULT_BRIM,enabled:[]})).toMatchObject({type:'error',message:expect.stringContaining('Load a model')});

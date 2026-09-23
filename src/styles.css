@@ -171,3 +171,8 @@
 @media(max-width:1050px) { .compact-layer-bar:has(.outline-control) { gap:8px 14px; padding:10px 18px; } }
 @media(max-width:600px) { .compact-metrics { font-size:10px; text-align:right; } .compact-layer-bar .outline-control { margin-left:0; flex:1; } .compact-layer-bar .layer-title { font-size:10px; } .outline-explanation { padding:12px 18px; } }
 .uncovered-swatch { background:#ff8972; }
+.diameter-optimizer { margin:-8px 0 22px; }
+.maximize-button { display:flex; align-items:center; justify-content:center; gap:7px; width:100%; padding:9px 12px; border:1px solid #746047; border-radius:5px; color:var(--accent); background:#ffb4540a; font-size:11px; }
+.maximize-button:hover:not(:disabled) { border-color:var(--accent); background:#ffb45416; }
+.maximize-button:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.diameter-notice { margin:9px 0 0; color:#bdcdd3; font-size:11px; line-height:1.6; }

@@ -41,18 +41,20 @@ describe('first-layer footprints without adjacent brim', () => {
     expect(result.uncovered).toEqual([]);
   });
 
-  it('keeps unchecked objects uncovered even when another object’s brim overlaps them', () => {
+  it('excludes unchecked objects from coverage even when another object’s brim overlaps them', () => {
     const p = project([box(),box(44,20)]), result = generateBrims(p,DEFAULT_BRIM,['object-1']);
     expect(totalArea(intersectPolygons(result.objects[0].footprint,result.objects[1].area))).toBeGreaterThan(10);
-    expect(result.objects[0].uncovered).toHaveLength(1);
+    expect(result.objects[0].uncovered).toEqual([]);
+    expect(result.objects[0].area).toEqual([]);
     expect(result.objects[1].uncovered).toEqual([]);
     expect(generateBrims(p,DEFAULT_BRIM).objects.every(o=>o.uncovered.length===0)).toBe(true);
   });
 
   it('retains holes in uncovered polygons and does not invent footprints for floating objects', () => {
     const p = project([extrude(enclosure,2),box(120,20)]);
+    p.bed = rectangle(110,0,60,60);
     for (let i=2;i<p.objects[1].parts[0].mesh.vertices.length;i+=3) p.objects[1].parts[0].mesh.vertices[i]+=1;
-    const result = generateBrims(p,DEFAULT_BRIM,[]);
+    const result = generateBrims(p,DEFAULT_BRIM);
     expect(result.objects[0].uncovered).toHaveLength(1);
     const uncovered = result.objects[0].uncovered[0];
     expect(uncovered.holes).toHaveLength(1);

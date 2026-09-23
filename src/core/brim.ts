@@ -1,7 +1,7 @@
 import { boundsOf, classifyRegions, intersectPolygons, offsetPolygons, polygonsOf, subtractPolygons, totalArea, unionPolygons } from './geometry';
 import { extrude, sliceMesh } from './mesh';
 import { sampleHeights, MIN_LAYER_HEIGHT, MAX_LAYER_HEIGHT } from './first-layer';
-import type { Bounds, BrimResult, BrimSettings, ModelObject, Project, Rings } from './types';
+import { MAX_DIAMETER, MIN_DIAMETER, type Bounds, type BrimResult, type BrimSettings, type ModelObject, type Polygon, type Project, type Ring, type Rings } from './types';
 
 export function footprint(object: ModelObject, z: number): Rings {
   const positives = object.parts.filter(p => p.kind === 'ModelPart').flatMap(p => sliceMesh(p.mesh, z));
@@ -20,9 +20,38 @@ function rolledOutline(free: Rings, bounds: Bounds): Rings {
   ]], free);
 }
 
+export function validateBrimSettings(settings: BrimSettings): void {
+  if (![settings.diameter, settings.width, settings.gap, settings.height, settings.perimeters].every(Number.isFinite) || settings.diameter < MIN_DIAMETER || settings.diameter > MAX_DIAMETER || settings.width < 0.1 || settings.width > 50 || settings.height < MIN_LAYER_HEIGHT || settings.height > MAX_LAYER_HEIGHT || settings.gap < -0.5 || settings.gap > 5 || settings.perimeters < 1 || settings.perimeters > 999 || !Number.isInteger(settings.perimeters)) throw new Error('Brim settings are outside the supported range.');
+}
+
+/** Shared by preview generation and the diameter search; no sweep or mesh work. */
+export function brimGeometry(shape: Rings, bed: Ring, settings: BrimSettings, enabled = true) {
+  const regions = classifyRegions(shape, settings.diameter);
+  let area: Rings = [], outline: Rings = [], clipped = false;
+  if (enabled && shape.length) {
+    const allowed = unionPolygons([...regions.outside, ...(settings.holes ? regions.holes : []), ...(settings.pockets ? regions.pockets : [])]);
+    outline = rolledOutline(allowed, boundsOf(shape));
+    // Measure the band from the rolled boundary, including its arcs.
+    area = subtractPolygons(offsetPolygons(outline, settings.gap + settings.width), offsetPolygons(outline, settings.gap));
+    if (bed.length) {
+      const onBed = intersectPolygons(area, [bed]);
+      clipped = totalArea(area) - totalArea(onBed) > 0.05;
+      area = onBed;
+    }
+  }
+  return { area, outline, regions, clipped };
+}
+
+export function uncoveredFootprints(islands: Polygon[], area: Rings, gap: number): Polygon[] {
+  // Check the actual, bed-clipped brim. Allow the intentional positive gap
+  // plus 0.02 mm for polygon approximation; zero/negative gaps touch/overlap.
+  const reach = offsetPolygons(area, Math.max(0, gap) + 0.02);
+  return islands.filter(island => totalArea(intersectPolygons([island.outer,...island.holes],reach)) < 0.0001);
+}
+
 export function generateBrims(project: Project, settings: BrimSettings, enabled = project.objects.map(o => o.id)): BrimResult {
   const start = performance.now();
-  if (![settings.diameter, settings.width, settings.gap, settings.height, settings.perimeters].every(Number.isFinite) || settings.diameter < 0.5 || settings.diameter > 100 || settings.width < 0.1 || settings.width > 50 || settings.height < MIN_LAYER_HEIGHT || settings.height > MAX_LAYER_HEIGHT || settings.gap < -0.5 || settings.gap > 5 || settings.perimeters < 1 || settings.perimeters > 999 || !Number.isInteger(settings.perimeters)) throw new Error('Brim settings are outside the supported range.');
+  validateBrimSettings(settings);
   const heights = sampleHeights(settings.height);
   const footprints = project.objects.map(o => footprint(o, heights.middle));
   if (!footprints.some(shape => shape.length)) throw new Error('No model intersects the first-layer sampling plane. Check the assumed first-layer height and the model placement in your slicer.');
@@ -33,38 +62,26 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
     const shape = footprints[index], notes: string[] = [];
     // Each Objects-panel entry is a separate job. Its own parts/shells share
     // one footprint; neighbours never affect the rolled boundary or brim.
-    const regions = classifyRegions(shape, settings.diameter);
+    const { area, outline, regions, clipped } = brimGeometry(shape, project.bed, settings, enabled.includes(object.id));
     counts.outside += regions.counts.outside; counts.holes += regions.counts.holes; counts.pockets += regions.counts.pockets;
     const bottom = footprint(object, heights.bottom);
     const top = footprint(object, heights.top);
     const changeArea = totalArea(subtractPolygons(top, bottom)) + totalArea(subtractPolygons(bottom, top));
     if (!shape.length) notes.push('No footprint at the sampling plane; no brim was added.');
     if (changeArea > Math.max(0.5, totalArea(shape) * 0.01)) notes.push('The base changes shape within the first layer. Use Compare layer outlines to inspect it.');
-    let area: Rings = [];
     if (enabled.includes(object.id) && shape.length) {
-      const allowed = unionPolygons([...regions.outside, ...(settings.holes ? regions.holes : []), ...(settings.pockets ? regions.pockets : [])]);
-      const outline = rolledOutline(allowed, boundsOf(shape));
-      const inner = offsetPolygons(outline, settings.gap);
-      // Measure both bands from the same rolled boundary, including its arcs.
-      area = subtractPolygons(offsetPolygons(outline, settings.gap + settings.width), inner);
       // The circle stays against the rolled boundary. Separation shifts only
       // the brim, never this sweep or which passages the circle can enter.
       // Neither band is trimmed against other objects.
       let sweep = subtractPolygons(offsetPolygons(outline, settings.diameter), outline);
       if (project.bed.length) {
-        const clipped = intersectPolygons(area, [project.bed]);
-        if (totalArea(area) - totalArea(clipped) > 0.05) notes.push('Brim clipped to the project’s print bed.');
-        area = clipped;
+        if (clipped) notes.push('Brim clipped to the project’s print bed.');
         sweep = intersectPolygons(sweep, [project.bed]);
       }
       sweepAreas.push(...sweep);
       if (!area.length) notes.push('No brim fits the current width and rolling diameter.');
     }
-    // Check the actual, bed-clipped brim for this object, not the circle sweep.
-    // Allow the intentional positive gap plus 0.02 mm for polygon approximation;
-    // zero/negative gaps already touch/overlap. Preserve holes in the highlight.
-    const reach = offsetPolygons(area, Math.max(0, settings.gap) + 0.02);
-    const uncovered = polygonsOf(shape).filter(island => totalArea(intersectPolygons([island.outer,...island.holes],reach)) < 0.0001);
+    const uncovered = enabled.includes(object.id) ? uncoveredFootprints(polygonsOf(shape), area, settings.gap) : [];
     return { id: object.id, footprint: shape, bottom, top, area, uncovered, mesh: extrude(area, settings.height), areaMm2: totalArea(area), changeArea, warnings: notes };
   });
   if (!objects.some(o => o.area.length)) warnings.push('No printable brim area is selected.');
