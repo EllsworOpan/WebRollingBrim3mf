@@ -6,12 +6,41 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { exportProject, importProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
-import { archive, box, meshXml, project } from './fixtures';
+import { archive, box, meshXml, project, rectangle } from './fixtures';
 import { boundsOf } from '../src/core/geometry';
-import { sliceMesh } from '../src/core/mesh';
+import { extrude, sliceMesh } from '../src/core/mesh';
 
 const slicer = process.env.PRUSA_SLICER || 'C:\\Program Files\\Prusa3D\\PrusaSlicer\\prusa-slicer-console.exe';
 describe.skipIf(!existsSync(slicer))('PrusaSlicer integration', () => {
+  it.each([false,true])('prints a continuous curved bridge as first-layer perimeters (separate objects=%s)', separate => {
+    mkdirSync('.local',{recursive:true});
+    const p = separate ? project([box(20,20,40,40,2),box(80,20,40,40,2)])
+      : project([extrude([rectangle(20,20,40,40),rectangle(80,20,40,40)],2)]);
+    const result = generateBrims(p,{...DEFAULT_BRIM,diameter:30,width:5});
+    const input = resolve(`.local/curved-bridge-${separate}.3mf`), output = resolve(`.local/curved-bridge-${separate}.gcode`);
+    writeFileSync(input,exportProject(p,result));
+    const info = execFileSync(slicer,['--info',input],{encoding:'utf8',timeout:60000});
+    expect(info.match(/manifold = yes/g)).toHaveLength(separate ? 2 : 1);
+    expect(info).not.toMatch(/(?:open_edges|edges_fixed|facets_added|facets_removed) = [1-9]/);
+    execFileSync(slicer,['--load',resolve('examples/validation.ini'),'--dont-arrange','--export-gcode','--output',output,input],{encoding:'utf8',timeout:60000});
+    let x=0,y=0,z=0,type='',crossings=0;
+    for (const line of readFileSync(output,'utf8').split(/\r?\n/)) {
+      if (line.startsWith(';TYPE:')) type=line.slice(6);
+      if (!/^G[01] /.test(line)) continue;
+      const fields = Object.fromEntries([...line.matchAll(/([XYZE])([-+]?(?:\d+\.?\d*|\.\d+))/g)].map(m=>[m[1],Number(m[2])]));
+      const px=x,py=y; x=fields.X??x; y=fields.Y??y; z=fields.Z??z;
+      if (!(fields.E>0) || Math.abs(x-px)<0.001 || Math.min(x,px)>70 || Math.max(x,px)<70) continue;
+      const crossingY = py+(y-py)*(70-px)/(x-px);
+      if (crossingY<56 || crossingY>62) continue;
+      crossings++;
+      expect(z).toBeCloseTo(0.2,4);
+      expect(type).toMatch(/perimeter/i);
+    }
+    // These extrusions cross the middle of the empty 20 mm model gap. Merely
+    // making a normal 5 mm brim on each original model cannot produce them.
+    expect(crossings).toBeGreaterThan(5);
+  },90000);
+
   it('opens a zero-gap brim without fixing missing triangle connections', () => {
     mkdirSync('.local',{recursive:true});
     const p=project([box(-30,10,7,13)]), result=generateBrims(p,{...DEFAULT_BRIM,gap:0});

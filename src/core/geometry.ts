@@ -81,7 +81,9 @@ export function classifyRegions(modelMm: Rings, diameter: number, overlap = 0): 
     const kind = isOutside(component) ? 'outside'
       : originalHoles.some(hole => containsPoint(component.outer[0], hole)) ? 'holes' : 'pockets';
     result.counts[kind]++;
-    result[kind].push(...offset(flatten(component), radius + Math.max(0, overlap) * SCALE));
+    // Restore the clearance micron too: it controls connectivity, not the
+    // distance of the recovered boundary from straight model walls.
+    result[kind].push(...offset(flatten(component), radius + 1 + Math.max(0, overlap) * SCALE));
   }
   return { outside: toMm(merge(result.outside)), holes: toMm(merge(result.holes)), pockets: toMm(merge(result.pockets)), counts: result.counts };
 }
