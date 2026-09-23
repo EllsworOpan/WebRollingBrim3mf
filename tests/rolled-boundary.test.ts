@@ -90,13 +90,21 @@ describe('brim measured from the rolled boundary', () => {
     });
   });
 
-  it('uses the same rolled boundary for the full-circle sweep, independently of brim width', () => {
-    const p = paired(), narrow = generateBrims(p,settings), wide = generateBrims(p,{...settings,width:30});
+  it('keeps the curved circle sweep fixed independently of brim width and separation gap', () => {
+    const p = paired(), narrow = generateBrims(p,settings), wide = generateBrims(p,{...settings,width:30,gap:0});
     expect(narrow.circleSweep).toEqual(wide.circleSweep);
     const full = combined(wide);
     expect(totalArea(subtractPolygons(full,wide.circleSweep))+totalArea(subtractPolygons(wide.circleSweep,full))).toBeLessThan(0.01);
     expect(has(narrow.circleSweep,70,60)).toBe(true);
     expect(has(narrow.circleSweep,70,40)).toBe(false);
+    // The analytic inner arc remains fixed while the actual brim moves.
+    const innerY = 60 + Math.sqrt(15**2-10**2) - 15;
+    for (const gap of [-0.5,0.3,5]) {
+      const result = generateBrims(p,{...settings,gap});
+      expect(result.circleSweep).toEqual(narrow.circleSweep);
+      expect(has(result.circleSweep,70,innerY+0.05)).toBe(true);
+      expect(has(result.circleSweep,70,innerY-0.05)).toBe(false);
+    }
   });
 
   it.each([0,1])('generates selected objects exactly as standalone objects (selected=%s)', index => {

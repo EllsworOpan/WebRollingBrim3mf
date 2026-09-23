@@ -47,9 +47,10 @@ export function generateBrims(project: Project, settings: BrimSettings, enabled 
       const inner = offsetPolygons(outline, settings.gap);
       // Measure both bands from the same rolled boundary, including its arcs.
       area = subtractPolygons(offsetPolygons(outline, settings.gap + settings.width), inner);
-      // Preview the same boundary with a diameter-wide band. Neither this
-      // sweep nor the exported brim is trimmed against other objects.
-      let sweep = subtractPolygons(offsetPolygons(outline, settings.gap + settings.diameter), inner);
+      // The circle stays against the rolled boundary. Separation shifts only
+      // the brim, never this sweep or which passages the circle can enter.
+      // Neither band is trimmed against other objects.
+      let sweep = subtractPolygons(offsetPolygons(outline, settings.diameter), outline);
       if (project.bed.length) {
         const clipped = intersectPolygons(area, [project.bed]);
         if (totalArea(area) - totalArea(clipped) > 0.05) notes.push('Brim clipped to the project’s print bed.');
