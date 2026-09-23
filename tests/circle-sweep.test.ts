@@ -27,14 +27,15 @@ describe('full rolling-circle sweep preview', () => {
     expect(has(holes.circleSweep,32,40)).toBe(false); expect(has(holes.circleSweep,92,40)).toBe(true);
     expect(has(pockets.circleSweep,40,56)).toBe(false);
   });
-  it('respects object selection, neighbours, and bed edges', () => {
+  it('respects object selection and bed edges while ignoring neighbours', () => {
     const p = project([box(),box(44,20)]); p.bed = rectangle(15,15,70,50);
     const result = generateBrims(p,DEFAULT_BRIM,['object-0']);
     expect(boundsOf(result.circleSweep).minX).toBe(15);
     expect(boundsOf(result.circleSweep).minY).toBe(15);
-    expect(has(result.circleSweep,42,30)).toBe(false);
+    expect(has(result.circleSweep,42,30)).toBe(true);
     expect(has(result.circleSweep,70,30)).toBe(false);
-    expect(totalArea(intersectPolygons(result.circleSweep,result.objects[1].footprint))).toBe(0);
+    expect(totalArea(intersectPolygons(result.circleSweep,result.objects[1].footprint))).toBeGreaterThan(0);
+    expect(result.circleSweep).toEqual(generateBrims({...p,objects:[p.objects[0]]},DEFAULT_BRIM).circleSweep);
     expect(generateBrims(p,DEFAULT_BRIM,[]).circleSweep).toEqual([]);
   });
 });

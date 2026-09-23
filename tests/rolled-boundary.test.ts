@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { footprint, generateBrims } from '../src/core/brim';
-import { boundsOf, containsPoint, intersectPolygons, polygonsOf, subtractPolygons, totalArea, unionPolygons } from '../src/core/geometry';
+import { boundsOf, containsPoint, polygonsOf, subtractPolygons, totalArea, unionPolygons } from '../src/core/geometry';
 import { extrude, sliceMesh } from '../src/core/mesh';
 import { exportProject, importProject } from '../src/core/three-mf';
 import { DEFAULT_BRIM, type Mesh, type Rings } from '../src/core/types';
@@ -9,7 +9,7 @@ import { box, project, rectangle } from './fixtures';
 
 const has = (rings: Rings, x: number, y: number) => polygonsOf(rings).some(p => containsPoint({x,y}, p));
 const combined = (result: ReturnType<typeof generateBrims>) => unionPolygons(result.objects.flatMap(o => o.area));
-const paired = () => project([box(20,20,40,40,2), box(80,20,40,40,2)]);
+const paired = () => project([extrude([rectangle(20,20,40,40),rectangle(80,20,40,40)],2)]);
 const settings = { ...DEFAULT_BRIM, diameter:30, width:5 };
 function expectClosed(mesh: Mesh) {
   const edges = new Map<string,number>();
@@ -21,9 +21,33 @@ function expectClosed(mesh: Mesh) {
     expect(count).toBe(1);
     expect(edges.get(key.split(',').reverse().join(',')),key).toBe(1);
   }
+  let volume=0;
+  for (let i=0;i<mesh.triangles.length;i+=3) {
+    const [a,b,c]=mesh.triangles.slice(i,i+3).map(n=>mesh.vertices.slice(n*3,n*3+3));
+    volume+=(a[0]*(b[1]*c[2]-b[2]*c[1])+a[1]*(b[2]*c[0]-b[0]*c[2])+a[2]*(b[0]*c[1]-b[1]*c[0]))/6;
+  }
+  return volume;
 }
 
 describe('brim measured from the rolled boundary', () => {
+  const layouts = [
+    [[40,40,0],[80,40,0],[60,80,0]],
+    [[40,40,0.2],[80,40,-0.35],[120,40,0.12],[80,80,0.5]],
+    [[40,40,0],[80,40,0],[120,40,0],[40,80,0],[80,80,0],[120,80,0]],
+  ];
+  const edgeCases = layouts.flatMap((layout,i) => [
+    [19.9,0.1,-0.2],[20,0.1,-0.2],[20,20,0.1],[20.1,20,1],[30,0.1,-0.2],[50,20,1],
+  ].map(([diameter,width,gap]) => ({name:`layout ${i}: ${diameter}/${width}/${gap}`,layout,diameter,width,gap})));
+  it.each(edgeCases)('keeps grouped pieces closed near clearance and width limits ($name)', ({layout,diameter,width,gap}) => {
+    const rings = layout.map(([x,y,a]) => rectangle(-10,-10,20,20).map(p => ({x:x+p.x*Math.cos(a)-p.y*Math.sin(a),y:y+p.x*Math.sin(a)+p.y*Math.cos(a)})));
+    const result = generateBrims(project([extrude(rings,2)]),{...DEFAULT_BRIM,diameter,width,gap});
+    const object = result.objects[0];
+    expect(object.areaMm2).toBeGreaterThan(0);
+    // Check the actual solid volume. Re-slicing would run polygon rounding
+    // and simplification again, obscuring the accuracy of a very thin band.
+    expect(expectClosed(object.mesh)).toBeCloseTo(object.areaMm2*DEFAULT_BRIM.height,5);
+  });
+
   it.each([-0.2,0,0.1,1])('follows the analytic 30 mm circle across a 20 mm gap with gap=%s', gap => {
     const result = generateBrims(paired(),{...settings,gap}), area = combined(result);
     // A radius-15 circle touches the upper corners (60,60) and (80,60).
@@ -36,7 +60,6 @@ describe('brim measured from the rolled boundary', () => {
     }
     expect(has(area,70,40)).toBe(false); // Deep in the impassable slot.
     expect(polygonsOf(area)).toHaveLength(1); // One continuous connecting band.
-    expect(totalArea(intersectPolygons(result.objects[0].area,result.objects[1].area))).toBe(0);
     for (const object of result.objects) {
       expect(object.areaMm2).toBeGreaterThan(0);
       expectClosed(object.mesh);
@@ -44,17 +67,19 @@ describe('brim measured from the rolled boundary', () => {
     }
   });
 
-  it.each([13,19,25.5,30])('keeps the actual test plate independent of object grouping at diameter=%s', diameter => {
+  it.each([13,19,25.5,30])('connects the test plate pieces only within one object at diameter=%s', diameter => {
     const input = importProject('plate.stl',new Uint8Array(readFileSync('examples/clearance-test-plate.stl')).buffer);
     const pieces = polygonsOf(footprint(input.objects[0],0.1));
     expect(pieces).toHaveLength(4);
     const split = project(pieces.map(p => extrude([p.outer,...p.holes],2)));
     const single = generateBrims(input,{...settings,diameter}), separate = generateBrims(split,{...settings,diameter});
     const a = combined(single), b = combined(separate);
-    expect(totalArea(subtractPolygons(a,b))+totalArea(subtractPolygons(b,a))).toBeLessThan(0.02);
     expect(polygonsOf(a)).toHaveLength(diameter<20 ? 4 : 1);
+    expect(polygonsOf(b)).toHaveLength(4);
     expect(has(a,70,120)).toBe(diameter>20);
     expect(has(a,61,100)).toBe(diameter<20);
+    expect(has(b,70,120)).toBe(false);
+    expect(has(b,61,100)).toBe(true);
     for (const object of separate.objects) expectClosed(object.mesh);
     const restored = importProject('brim.3mf',exportProject(split,separate).slice().buffer);
     expect(restored.objects).toHaveLength(4);
@@ -74,12 +99,13 @@ describe('brim measured from the rolled boundary', () => {
     expect(has(narrow.circleSweep,70,40)).toBe(false);
   });
 
-  it.each([0,1])('keeps unselected neighbours as obstacles without giving them a brim (selected=%s)', index => {
-    const p = paired(), result = generateBrims(p,settings,[`object-${index}`]);
+  it.each([0,1])('generates selected objects exactly as standalone objects (selected=%s)', index => {
+    const p = project([box(20,20,40,40,2),box(80,20,40,40,2)]), result = generateBrims(p,settings,[`object-${index}`]);
+    const standalone = generateBrims({...p,objects:[p.objects[index]]},settings);
     expect(result.objects[1-index].area).toEqual([]);
-    expect(result.objects[index].areaMm2).toBeGreaterThan(0);
+    expect(result.objects[index]).toEqual(standalone.objects[0]);
+    expect(result.circleSweep).toEqual(standalone.circleSweep);
     expect(has(result.objects[index].area,index===0 ? 121 : 19,40)).toBe(false);
-    expect(totalArea(intersectPolygons(result.objects[index].area,result.objects[1-index].footprint))).toBe(0);
     expectClosed(result.objects[index].mesh);
     expect(generateBrims(p,settings,[]).circleSweep).toEqual([]);
   });

@@ -77,13 +77,14 @@ describe('rolling-circle geometry retained from the G-code app', () => {
     const narrow=generateBrims(p,{...DEFAULT_BRIM,width:2}),wide=generateBrims(p,{...DEFAULT_BRIM,width:7});
     expect(narrow.regions).toEqual(wide.regions); expect(wide.objects[0].areaMm2).toBeGreaterThan(narrow.objects[0].areaMm2);
   });
-  it('creates independent nonoverlapping brims and respects unselected neighbours', () => {
+  it('leaves overlaps unchanged and keeps neighbouring selections independent', () => {
     const p=project([box(20,20),box(44,20)]), result=generateBrims(p,{...DEFAULT_BRIM,diameter:1});
-    expect(totalArea(intersectPolygons(result.objects[0].area,result.objects[1].area))).toBe(0);
+    expect(totalArea(intersectPolygons(result.objects[0].area,result.objects[1].area))).toBeGreaterThan(0);
     expect(result.objects.every(o=>o.areaMm2>0)).toBe(true);
     const selected=generateBrims(p,{...DEFAULT_BRIM,diameter:1},['object-0']);
     expect(selected.objects[1].area).toEqual([]);
-    expect(totalArea(intersectPolygons(selected.objects[0].area,selected.objects[1].footprint))).toBe(0);
+    expect(selected.objects[0].area).toEqual(result.objects[0].area);
+    expect(totalArea(intersectPolygons(selected.objects[0].area,selected.objects[1].footprint))).toBeGreaterThan(0);
   });
   it('subtracts negative volumes and clips brims to a known bed', () => {
     const p=project([box(0,0,40,40)]); p.bed=rectangle(0,0,50,50); p.objects[0].parts.push({name:'Cut',kind:'NegativeVolume',mesh:box(10,10)});

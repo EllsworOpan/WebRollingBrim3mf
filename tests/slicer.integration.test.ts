@@ -12,7 +12,7 @@ import { extrude, sliceMesh } from '../src/core/mesh';
 
 const slicer = process.env.PRUSA_SLICER || 'C:\\Program Files\\Prusa3D\\PrusaSlicer\\prusa-slicer-console.exe';
 describe.skipIf(!existsSync(slicer))('PrusaSlicer integration', () => {
-  it.each([false,true])('prints a continuous curved bridge as first-layer perimeters (separate objects=%s)', separate => {
+  it.each([false,true])('prints a curved bridge only between pieces of the same object (separate objects=%s)', separate => {
     mkdirSync('.local',{recursive:true});
     const p = separate ? project([box(20,20,40,40,2),box(80,20,40,40,2)])
       : project([extrude([rectangle(20,20,40,40),rectangle(80,20,40,40)],2)]);
@@ -38,7 +38,8 @@ describe.skipIf(!existsSync(slicer))('PrusaSlicer integration', () => {
     }
     // These extrusions cross the middle of the empty 20 mm model gap. Merely
     // making a normal 5 mm brim on each original model cannot produce them.
-    expect(crossings).toBeGreaterThan(5);
+    if (separate) expect(crossings).toBe(0);
+    else expect(crossings).toBeGreaterThan(5);
   },90000);
 
   it('opens a zero-gap brim without fixing missing triangle connections', () => {
