@@ -9,7 +9,9 @@ import { archive, box, meshXml } from './fixtures';
 
 const input = () => new Uint8Array(paintedSeed(readFileSync('examples/validation.ini','utf8')));
 const addBrims = (bytes: Uint8Array, enabled?: string[]) => {
-  const p = importProject('painted.3mf',bytes.slice().buffer);
+  // Buffer.slice() shares its backing pool. Copy the visible bytes so imports
+  // never receive neighboring allocations from a readFileSync Buffer.
+  const p = importProject('painted.3mf',new Uint8Array(bytes).buffer);
   return exportProject(p,generateBrims(p,DEFAULT_BRIM,enabled));
 };
 const isBrim = (p: ReturnType<typeof modelSnapshot>[number]['parts'][number]) => p.settings.source_file === 'rolling-brim.generated.stl';
@@ -25,6 +27,19 @@ describe('PrusaSlicer painting and settings preservation', () => {
       expect(object.parts.filter(p => !isBrim(p))).toEqual(before[i].parts);
       expect(object.parts.filter(isBrim)).toHaveLength(1);
     });
+  });
+  it.each(['painted-prusa.3mf','painted-instances-prusa.3mf'])('loads only the fixture bytes when %s occupies part of a Node Buffer', name => {
+    const source = readFileSync(`tests/fixtures/${name}`);
+    // Force surrounding bytes and a nonzero offset, independent of how this
+    // Node version or OS allocates small readFileSync buffers.
+    const storage = Buffer.alloc(source.byteLength+128,0xff);
+    source.copy(storage,64);
+    const view = storage.subarray(64,64+source.byteLength);
+    expect(view.byteOffset).toBeGreaterThan(0);
+    expect(view.buffer.byteLength).toBeGreaterThan(view.byteLength);
+    const expected = modelSnapshot(addBrims(new Uint8Array(source)));
+    expect(modelSnapshot(addBrims(view))).toEqual(expected);
+    expect(view).toEqual(source);
   });
   it('preserves all painting types, partial-face encodings, part roles and settings across edits from the same upload', () => {
     const bytes = input(), original = bytes.slice();
