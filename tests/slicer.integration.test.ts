@@ -107,21 +107,16 @@ describe.skipIf(!existsSync(slicer))('PrusaSlicer integration', () => {
     writeFileSync('.local/transformed.3mf',exportProject(p,result));
     execFileSync(slicer,['--export-3mf','--output',resolve('.local/transformed-roundtrip.3mf'),resolve('.local/transformed.3mf')],{encoding:'utf8',timeout:60000});
     const bytes=readFileSync('.local/transformed-roundtrip.3mf'), round=importProject('round.3mf',bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength));
-    const after=generateBrims(round,DEFAULT_BRIM);
-    expect(after.objects).toHaveLength(2);
+    expect(round.objects).toHaveLength(2);
     const beforeOrdered=[...result.objects].sort((a,b)=>boundsOf(a.footprint).minX-boundsOf(b.footprint).minX);
-    const afterOrdered=[...after.objects].sort((a,b)=>boundsOf(a.footprint).minX-boundsOf(b.footprint).minX);
-    afterOrdered.forEach((o,i)=>{
-      const beforeBounds=boundsOf(beforeOrdered[i].footprint),afterBounds=boundsOf(o.footprint);
+    const afterOrdered=round.objects.map(o=>boundsOf(sliceMesh(o.parts[0].mesh,0.1))).sort((a,b)=>a.minX-b.minX);
+    afterOrdered.forEach((afterBounds,i)=>{
+      const beforeBounds=boundsOf(beforeOrdered[i].footprint);
       expect(afterBounds.minX).toBeCloseTo(beforeBounds.minX,3); expect(afterBounds.maxY).toBeCloseTo(beforeBounds.maxY,3);
     });
     const files=unzipSync(bytes), config=strFromU8(files['Metadata/Slic3r_PE_model.config']);
     expect(config.match(/value="Rolling brim"/g)).toHaveLength(2);
-    // Treat generated brims as ordinary input meshes to inspect the geometry
-    // actually saved by PrusaSlicer, rather than regenerating it in our code.
-    files['Metadata/Slic3r_PE_model.config']=strToU8(config.replaceAll('rolling-brim.generated.stl','inspect-brim.stl'));
-    const actual=importProject('inspect.3mf',zipSync(files).slice().buffer);
-    const brimBounds=actual.objects.flatMap(o=>o.parts.filter(p=>p.name==='Rolling brim').map(p=>boundsOf(sliceMesh(p.mesh,0.1)))).sort((a,b)=>a.minX-b.minX);
+    const brimBounds=round.objects.flatMap(o=>o.parts.filter(p=>p.name==='Rolling brim').map(p=>boundsOf(sliceMesh(p.mesh,0.1)))).sort((a,b)=>a.minX-b.minX);
     brimBounds.forEach((b,i)=>{ expect(b.minX).toBeCloseTo(boundsOf(beforeOrdered[i].area).minX,3); expect(b.maxY).toBeCloseTo(boundsOf(beforeOrdered[i].area).maxY,3); });
   },90000);
 });

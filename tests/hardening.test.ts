@@ -15,8 +15,8 @@ const parse = (bytes: Uint8Array) => new DOMParser().parseFromString(strFromU8(b
 const range = (first: string, last: string, generated = false) => `<volume firstid="${first}" lastid="${last}">${generated ? '<metadata key="source_file" value="rolling-brim.generated.stl"/>' : ''}</volume>`;
 
 describe('3MF data preservation and validation', () => {
-  it('replaces generated geometry without growing vertices on successive exports', () => {
-    let p = project([box()]);
+  it('starts successive exports from the clean imported checkpoint without growing vertices', () => {
+    const p = project([box()]), checkpoint = structuredClone(p);
     let counts: number[] | undefined;
     for (let cycle = 0; cycle < 4; cycle++) {
       const bytes = exportProject(p, generateBrims(p, DEFAULT_BRIM));
@@ -24,24 +24,26 @@ describe('3MF data preservation and validation', () => {
       const current = ['vertex', 'triangle'].map(tag => model.getElementsByTagName(tag).length);
       if (counts) expect(current).toEqual(counts);
       counts = current;
-      p = importProject('roundtrip.3mf', bytes.slice().buffer);
-      expect(totalArea(sliceMesh(p.objects[0].parts[0].mesh, 0.1))).toBe(400);
+      expect(p).toEqual(checkpoint);
+      const round = importProject('roundtrip.3mf', bytes.slice().buffer);
+      expect(totalArea(sliceMesh(round.objects[0].parts[0].mesh, 0.1))).toBe(400);
+      expect(round.objects[0].parts).toHaveLength(2);
     }
   });
 
-  it('removes brims before and after body parts while preserving negative volumes, painting and original spare vertices', () => {
+  it('retains every input part and spare vertex regardless of its source filename', () => {
     const meshes = [box(-50,0), box(), box(25,25,5,5), box(100,0)];
     const mesh: Mesh = {vertices:meshes.flatMap(m => m.vertices),triangles:meshes.flatMap((m,i) => m.triangles.map(n => n+i*8))};
-    mesh.vertices.push(123,456,789); // An original unreferenced vertex is not brim-owned.
+    mesh.vertices.push(123,456,789); // Preserve even unreferenced input vertices.
     const config = `<config><object id="1">${range('0','11',true)}${range('12','23')}<volume firstid="24" lastid="35"><metadata key="volume_type" value="NegativeVolume"/><metadata key="name" value="Cutout"/></volume>${range('36','47',true)}</object></config>`;
     const p = load(`<object id="1">${meshXml(mesh).replaceAll('<triangle ', '<triangle paint_supports="1" ')}</object>`,item,config);
     const result = generateBrims(p,DEFAULT_BRIM);
     const bytes = exportProject(p,result), model = parse(unzipSync(bytes)['3D/3dmodel.model']);
-    expect(model.getElementsByTagName('vertex').length).toBe(17 + result.objects[0].mesh.vertices.length/3);
-    expect(Array.from(model.getElementsByTagName('triangle')).filter(t => t.getAttribute('paint_supports') === '1')).toHaveLength(24);
+    expect(model.getElementsByTagName('vertex').length).toBe(33 + result.objects[0].mesh.vertices.length/3);
+    expect(Array.from(model.getElementsByTagName('triangle')).filter(t => t.getAttribute('paint_supports') === '1')).toHaveLength(48);
     const round = importProject('roundtrip.3mf',bytes.slice().buffer);
-    expect(round.objects[0].parts.map(p => p.kind)).toEqual(['ModelPart','NegativeVolume']);
-    expect(generateBrims(round,DEFAULT_BRIM).objects[0].footprint).toEqual(result.objects[0].footprint);
+    expect(round.objects[0].parts.map(p => p.kind)).toEqual(['ModelPart','ModelPart','NegativeVolume','ModelPart','ModelPart']);
+    expect(round.objects[0].parts.slice(0,4)).toEqual(p.objects[0].parts);
   });
 
   it.each([
@@ -89,7 +91,7 @@ describe('3MF data preservation and validation', () => {
     expect(strFromU8(files['Metadata/Slic3r_PE_model.config']).match(/value="Rolling brim"/g)).toHaveLength(1);
     const round = importProject('round.3mf', bytes.slice().buffer);
     expect(new Set(round.objects.map(o => o.resourceId)).size).toBe(3);
-    expect(generateBrims(round, DEFAULT_BRIM).objects.map(o => boundsOf(o.footprint))).toEqual(result.objects.map(o => boundsOf(o.footprint)));
+    expect(round.objects.map(o => boundsOf(sliceMesh(o.parts[0].mesh,0.1)))).toEqual(result.objects.map(o => boundsOf(o.footprint)));
   });
 
   it.each(['NaN', 'Infinity', '0', '-0.1', '200%', '2'])('does not offer an unusable first-layer height (%s)', value => {

@@ -9,7 +9,7 @@ import type { BrimResult, Mesh, ModelObject, ModelPart, Project } from './types'
 
 const NS = 'http://schemas.microsoft.com/3dmanufacturing/core/2015/02';
 const CONFIG = 'Metadata/Slic3r_PE_model.config';
-const MARKER = 'rolling-brim.generated.stl';
+const BRIM_SOURCE_FILE = 'rolling-brim.generated.stl';
 type Doc = ReturnType<DOMParser['parseFromString']>;
 type El = Element;
 const xml = (value: string): Doc => {
@@ -27,7 +27,6 @@ const child = (parent: El, name: string): El => {
   return element;
 };
 const meta = (parent: El | undefined, key: string) => parent && children(parent, 'metadata').find(m => m.getAttribute('key') === key)?.getAttribute('value') || '';
-const generated = (volume: El) => meta(volume, 'source_file') === MARKER;
 const num = (s: string | null) => {
   if (s === null || s.trim() === '' || !Number.isFinite(Number(s))) throw new Error('Invalid numeric value in the 3MF model.');
   return Number(s);
@@ -70,6 +69,18 @@ function checkVolumes(volumes: El[], triangleCount: number) {
     next = last + 1;
   }
   if (next !== triangleCount) throw new Error('The 3MF part triangle ranges do not cover the model. Save a repaired project in PrusaSlicer.');
+}
+function meshResourceId(id: string, resources: El[], configs: El[]): string {
+  // PrusaSlicer represents extra instances as an identity component pointing
+  // to the configured mesh. Resolve only this alias; never flatten its paint.
+  const resource = resources.find(r => r.getAttribute('id') === id);
+  const components = resource && children(resource, 'components')[0];
+  const refs = components ? children(components, 'component') : [];
+  if (resource && children(resource,'mesh').length || refs.length !== 1 || refs[0].attributes.length !== 1 || !refs[0].hasAttribute('objectid') || configs.some(c => c.getAttribute('id') === id)) return id;
+  const target = refs[0].getAttribute('objectid')!;
+  const cfg = configs.find(c => c.getAttribute('id') === target);
+  const mesh = resources.find(r => r.getAttribute('id') === target);
+  return cfg && Number(cfg.getAttribute('instances_count')) > 1 && mesh && children(mesh,'mesh').length ? target : id;
 }
 export function importProject(name: string, bytes: ArrayBuffer): Project {
   if (bytes.byteLength > 200_000_000) throw new Error('Choose a file smaller than 200 MB.');
@@ -116,14 +127,16 @@ export function importProject(name: string, bytes: ArrayBuffer): Project {
       if (Array.from(c.attributes).some(a => a.localName === 'path')) throw new Error('External model components are not supported. Save this as a PrusaSlicer 3MF project first.');
       return partsFor(c.getAttribute('objectid') || '', transform.clone().multiply(matrix(c.getAttribute('transform'))), seen, true);
     });
+    if (assembly && children(child(meshElement, 'triangles'), 'triangle').some(t => Array.from(t.attributes).some(a => !['v1','v2','v3'].includes(a.name)))) {
+      throw new Error('Component assemblies with painted or annotated triangles are not supported. Save this as a standard PrusaSlicer 3MF first.');
+    }
     const mesh = readMesh(meshElement);
     meshCount += mesh.triangles.length / 3;
     if (meshCount > 2_000_000) throw new Error('This scene exceeds the two-million-triangle browser limit.');
     const volumes = config ? children(config, 'volume') : [];
     if (!volumes.length) return [{ name: meta(config, 'name') || resource.getAttribute('name') || `Model ${id}`, kind: 'ModelPart', mesh: transformMesh(mesh, transform) }];
-    // Validate generated parts too, before excluding them from the preview.
     checkVolumes(volumes, mesh.triangles.length / 3);
-    return volumes.filter(v => !generated(v)).map(volume => {
+    return volumes.map(volume => {
       const first = num(volume.getAttribute('firstid')), last = num(volume.getAttribute('lastid'));
       if (!Number.isInteger(first) || !Number.isInteger(last) || first < 0 || last < first || last >= mesh.triangles.length / 3) throw new Error('A 3MF part has invalid triangle ranges.');
       const kind = meta(volume, 'volume_type') || (meta(volume, 'modifier') === '1' ? 'ParameterModifier' : 'ModelPart');
@@ -134,7 +147,7 @@ export function importProject(name: string, bytes: ArrayBuffer): Project {
   const objects: ModelObject[] = [];
   children(child(root, 'build'), 'item').forEach((item, index) => {
     if (['0','false'].includes(item.getAttribute('printable') || '')) return;
-    const id = item.getAttribute('objectid') || '', config = configs.find(c => c.getAttribute('id') === id);
+    const id = meshResourceId(item.getAttribute('objectid') || '',resources,configs), config = configs.find(c => c.getAttribute('id') === id);
     const transform = matrix(item.getAttribute('transform'), scale), parts = partsFor(id, transform);
     if (parts.some(p => p.kind === 'ModelPart')) objects.push({ id: `object-${index}`, name: meta(config, 'name') || resources.find(r => r.getAttribute('id') === id)?.getAttribute('name') || parts[0]?.name || `Object ${index + 1}`, resourceId: id, buildIndex: index, transform: transform.toArray(), parts });
   });
@@ -154,7 +167,6 @@ export function importProject(name: string, bytes: ArrayBuffer): Project {
   if (Number(setting('xy_size_compensation')) !== 0 && setting('xy_size_compensation')) warnings.push('The project applies XY size compensation. The preview shows uncompensated mesh sections; check the final gap after slicing.');
   if (Number(setting('raft_layers')) > 0) throw new Error('Raft projects are not supported. Disable the raft and place the model on the bed first.');
   if (Number(setting('brim_width')) > 0) warnings.push('Native slicer brim is enabled in this project and may add another brim. Turn it off in PrusaSlicer if unwanted.');
-  if (configs.some(c => children(c, 'volume').some(generated))) warnings.push('Previously generated rolling-brim parts will be replaced on export.');
   const suggestedHeight = height && Number.isFinite(Number(height)) && Number(height) >= MIN_LAYER_HEIGHT && Number(height) <= MAX_LAYER_HEIGHT ? Number(height) : undefined;
   if (height && !height.endsWith('%') && suggestedHeight === undefined) warnings.push(`The stored first-layer height is outside the supported ${MIN_LAYER_HEIGHT}–${MAX_LAYER_HEIGHT} mm range. Choose the height manually.`);
   return { name, objects, bed, warnings, source: { files, modelPath }, suggestedHeight };
@@ -198,12 +210,17 @@ export function exportProject(project: Project, result: BrimResult): Uint8Array 
   let nextId = Math.max(0, ...Array.from(resources.childNodes).filter(n => n.nodeType === 1).map(n => Number((n as El).getAttribute('id')) || 0)) + 1;
   const originalResources = children(resources, 'object'), originalConfigs = children(config.documentElement, 'object');
   const buildItems = children(build, 'item');
+  const referenceCounts = new Map<string, number>();
+  for (const item of buildItems) {
+    const id = meshResourceId(item.getAttribute('objectid') || '',originalResources,originalConfigs);
+    referenceCounts.set(id,(referenceCounts.get(id) || 0)+1);
+  }
   for (const object of project.objects) {
     const brim = result.objects.find(o => o.id === object.id)!;
     const original = originalResources.find(r => r.getAttribute('id') === object.resourceId);
     const oldConfig = originalConfigs.find(c => c.getAttribute('id') === object.resourceId);
     const direct = original && children(original, 'mesh').length > 0;
-    const repeated = buildItems.filter(item => item.getAttribute('objectid') === object.resourceId).length > 1;
+    const repeated = (referenceCounts.get(object.resourceId) || 0) > 1;
     if (repeated && Object.keys(files).some(p => /layer_heights_profile|layer_config_ranges/.test(p))) throw new Error('Repeated instances with custom layer-height profiles need to be made independent objects in PrusaSlicer before export.');
     const id = original && !repeated ? object.resourceId : String(nextId++);
     const out = direct ? original.cloneNode(true) as El : doc.createElementNS(NS, 'object');
@@ -216,28 +233,9 @@ export function exportProject(project: Project, result: BrimResult): Uint8Array 
     let meshElement: El;
     if (direct) {
       meshElement = child(out, 'mesh');
-      const triangles = child(meshElement, 'triangles'), all = children(triangles, 'triangle');
-      const volumes = children(cfg, 'volume');
-      const remove = new Set<number>();
-      for (const v of volumes.filter(generated)) { for (let i = Number(v.getAttribute('firstid')); i <= Number(v.getAttribute('lastid')); i++) remove.add(i); cfg.removeChild(v); }
-      if (remove.size) {
-        const removedBefore = new Int32Array(all.length + 1);
-        const vertices = child(meshElement, 'vertices'), points = children(vertices, 'vertex');
-        const unused = new Uint8Array(points.length), vertexKeys = ['v1','v2','v3'];
-        all.forEach((t,i) => {
-          removedBefore[i+1] = removedBefore[i] + Number(remove.has(i));
-          if (remove.has(i)) for (const key of vertexKeys) unused[Number(t.getAttribute(key))] = 1;
-        });
-        // Only delete vertices owned exclusively by removed brims. Original
-        // unreferenced vertices and vertices shared with body faces survive.
-        all.forEach((t,i) => { if (!remove.has(i)) for (const key of vertexKeys) unused[Number(t.getAttribute(key))] = 0; });
-        const remap = new Int32Array(points.length);
-        let next = 0;
-        points.forEach((v,i) => { if (unused[i]) vertices.removeChild(v); else remap[i] = next++; });
-        for (const v of volumes.filter(v => !generated(v))) { for (const key of ['firstid','lastid']) { const n = Number(v.getAttribute(key)); v.setAttribute(key, String(n - removedBefore[n])); } }
-        all.forEach((t,i) => { if (!remove.has(i)) for (const key of vertexKeys) t.setAttribute(key, String(remap[Number(t.getAttribute(key))])); });
-        all.forEach((t,i) => { if (remove.has(i)) triangles.removeChild(t); });
-      }
+      // Append to the original mesh without rebuilding faces or their corner
+      // order: PrusaSlicer stores partial-face painting on these triangles.
+      const triangles = child(meshElement, 'triangles');
       if (!children(cfg, 'volume').length) partConfig(config, cfg, 0, children(triangles, 'triangle').length, object.name);
     } else {
       // Generic component assemblies are flattened into one multipart object per
@@ -255,7 +253,7 @@ export function exportProject(project: Project, result: BrimResult): Uint8Array 
       const local = transformMesh(brim.mesh, new Matrix4().fromArray(object.transform).invert());
       appendMesh(doc, meshElement, local);
       const volume = partConfig(config, cfg, first, local.triangles.length / 3, 'Rolling brim');
-      const settings: Record<string, string> = { source_file: MARKER, perimeters: String(result.settings.perimeters), top_solid_layers: '0', bottom_solid_layers: '0', top_solid_min_thickness: '0', bottom_solid_min_thickness: '0', fill_density: '0%', gap_fill_enabled: '0', ensure_vertical_shell_thickness: 'disabled', only_one_perimeter_first_layer: '0', top_one_perimeter_type: 'none', ironing: '0' };
+      const settings: Record<string, string> = { source_file: BRIM_SOURCE_FILE, perimeters: String(result.settings.perimeters), top_solid_layers: '0', bottom_solid_layers: '0', top_solid_min_thickness: '0', bottom_solid_min_thickness: '0', fill_density: '0%', gap_fill_enabled: '0', ensure_vertical_shell_thickness: 'disabled', only_one_perimeter_first_layer: '0', top_one_perimeter_type: 'none', ironing: '0' };
       Object.entries(settings).forEach(([key,value]) => addMeta(config, volume, 'volume', key, value));
     }
     if (original && !repeated) resources.replaceChild(out, original); else resources.appendChild(out);
@@ -263,6 +261,9 @@ export function exportProject(project: Project, result: BrimResult): Uint8Array 
     let item = buildItems[object.buildIndex];
     if (!item) { item = doc.createElementNS(NS, 'item'); build.appendChild(item); }
     item.setAttribute('objectid', id);
+    // Keep the original resource for the last remaining reference. PrusaSlicer
+    // rejects orphan mesh resources, even if all copied build items are valid.
+    if (repeated) referenceCounts.set(object.resourceId,referenceCounts.get(object.resourceId)!-1);
   }
   files[modelPath] = serialize(doc); files[CONFIG] = serialize(config);
   files['Metadata/rolling_brim.json'] = strToU8(JSON.stringify({ version: 1, settings: result.settings, sampleZ: result.settings.height / 2, printOrder: 'Determined by PrusaSlicer; brim-first is not guaranteed.' }, null, 2));

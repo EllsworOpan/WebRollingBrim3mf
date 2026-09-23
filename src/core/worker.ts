@@ -1,6 +1,8 @@
 import { importProject, exportProject } from './three-mf';
 import { generateBrims } from './brim';
 import type { Project, WorkerRequest, WorkerResponse } from './types';
+// This imported checkpoint stays unchanged. Each settings update and export
+// generates a fresh brim; exported geometry never becomes the next input.
 let project: Project | undefined;
 self.onmessage = ({ data }: MessageEvent<WorkerRequest>) => {
   const send = (message: WorkerResponse) => self.postMessage(message);

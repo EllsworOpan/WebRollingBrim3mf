@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { strFromU8, unzipSync } from 'fflate';
+import { readFileSync } from 'node:fs';
+import { strFromU8, strToU8, unzipSync } from 'fflate';
 import { DEFAULT_BRIM, type WorkerRequest, type WorkerResponse } from '../src/core/types';
 import { box, stl } from './fixtures';
+import { modelSnapshot, paintedSeed } from './painted-fixtures';
 
 describe('model worker lifecycle', () => {
   let scope: { postMessage: ReturnType<typeof vi.fn>; onmessage?: (message: {data: WorkerRequest}) => void };
@@ -35,5 +37,27 @@ describe('model worker lifecycle', () => {
     expect(send({type:'export',id:3,settings:DEFAULT_BRIM,enabled:['object-0']})).toMatchObject({type:'error',message:expect.stringContaining('Load a model')});
     expect(send({type:'load',id:4,name:'new.stl',bytes:stl(box(70,20))})).toMatchObject({type:'loaded',project:{name:'new.stl'}});
     expect(send({type:'generate',id:5,settings:DEFAULT_BRIM,enabled:['object-0']})).toMatchObject({type:'generated'});
+  });
+
+  it.each(['stl','obj','3mf'])('always regenerates %s from its clean import after preview and export changes', format => {
+    const mesh = box();
+    const obj = [...Array.from({length:mesh.vertices.length/3},(_,i) => `v ${mesh.vertices.slice(i*3,i*3+3).join(' ')}`),...Array.from({length:mesh.triangles.length/3},(_,i) => `f ${mesh.triangles.slice(i*3,i*3+3).map(v => v+1).join(' ')}`)].join('\n');
+    const bytes = format === 'stl' ? stl(mesh) : format === 'obj' ? strToU8(obj).slice().buffer : paintedSeed(readFileSync('examples/validation.ini','utf8'));
+    const original = new Uint8Array(bytes).slice();
+    expect(send({type:'load',id:1,name:`input.${format}`,bytes})).toMatchObject({type:'loaded'});
+    const exported = (id: number, width: number) => {
+      const response = send({type:'export',id,settings:{...DEFAULT_BRIM,width},enabled:['object-0']});
+      if (response.type !== 'exported') throw new Error('Expected export');
+      return response.bytes;
+    };
+    const first = exported(2,3);
+    expect(send({type:'generate',id:3,settings:{...DEFAULT_BRIM,width:6},enabled:['object-0']})).toMatchObject({type:'generated'});
+    const changed = exported(4,6), restored = exported(5,3);
+    expect(unzipSync(restored)).toEqual(unzipSync(first));
+    expect(new Uint8Array(bytes)).toEqual(original);
+    const firstParts = modelSnapshot(first)[0].parts, changedParts = modelSnapshot(changed)[0].parts;
+    expect(firstParts.slice(0,-1)).toEqual(changedParts.slice(0,-1));
+    expect(changedParts.at(-1)!.faces).not.toEqual(firstParts.at(-1)!.faces);
+    expect(changedParts.filter(p => p.settings.name === 'Rolling brim')).toHaveLength(1);
   });
 });

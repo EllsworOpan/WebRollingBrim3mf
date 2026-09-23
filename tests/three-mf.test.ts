@@ -5,15 +5,14 @@ import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
 import { archive, box, meshXml, project } from './fixtures';
 import { boundsOf } from '../src/core/geometry';
+import { sliceMesh } from '../src/core/mesh';
 const ab=(bytes:Uint8Array)=>bytes.slice().buffer;
 describe('3MF import/export',()=>{
   it('exports two objects with a separate configured brim part on each',()=>{
     const p=project([box(),box(70,20)]), bytes=exportProject(p,generateBrims(p,DEFAULT_BRIM));
     const files=unzipSync(bytes),config=strFromU8(files['Metadata/Slic3r_PE_model.config']);
     expect(config.match(/value="Rolling brim"/g)).toHaveLength(2); expect(config.match(/key="perimeters" value="99"/g)).toHaveLength(2);
-    const loaded=importProject('result.3mf',ab(bytes)); expect(loaded.objects).toHaveLength(2); expect(loaded.objects[0].parts).toHaveLength(1);
-    const regenerated=exportProject(loaded,generateBrims(loaded,DEFAULT_BRIM));
-    expect(strFromU8(unzipSync(regenerated)['Metadata/Slic3r_PE_model.config']).match(/value="Rolling brim"/g)).toHaveLength(2);
+    const loaded=importProject('result.3mf',ab(bytes)); expect(loaded.objects).toHaveLength(2); expect(loaded.objects[0].parts).toHaveLength(2);
   });
   it('preserves project profiles, existing part settings, painting and placement',()=>{
     const mesh=meshXml(box()).replace('<triangle ','<triangle slic3rpe:paint_supports="1" ');
@@ -23,7 +22,7 @@ describe('3MF import/export',()=>{
     const output=unzipSync(exportProject(p,result)), before=unzipSync(new Uint8Array(input));
     expect(output['Metadata/Slic3r_PE.config']).toEqual(before['Metadata/Slic3r_PE.config']); expect(output['Metadata/custom.bin']).toEqual(before['Metadata/custom.bin']);
     expect(strFromU8(output['Metadata/Slic3r_PE_model.config'])).toContain('value="42%"'); expect(strFromU8(output['3D/3dmodel.model'])).toContain('paint_supports="1"');
-    const round=importProject('out.3mf',ab(exportProject(p,result))); expect(generateBrims(round,DEFAULT_BRIM).objects[0].footprint).toEqual(result.objects[0].footprint);
+    const round=importProject('out.3mf',ab(exportProject(p,result))); expect(round.objects[0].parts[0]).toEqual(p.objects[0].parts[0]);
   });
   it('overrides elephant-foot compensation once per object, including objects without a brim',()=>{
     const config='<config><object id="1"><metadata type="object" key="elefant_foot_compensation" value="0.3"/><metadata type="object" key="elefant_foot_compensation" value="0.4"/></object></config>';
@@ -40,13 +39,18 @@ describe('3MF import/export',()=>{
     const input=archive(`<object id="7">${meshXml(box())}</object>`,'<item objectid="7"/><item objectid="7" transform="1 0 0 0 1 0 0 0 1 50 0 0"/>');
     const p=importProject('copies.3mf',input), result=generateBrims(p,DEFAULT_BRIM), out=exportProject(p,result);
     const round=importProject('out.3mf',ab(out)); expect(round.objects).toHaveLength(2); expect(new Set(round.objects.map(o=>o.resourceId)).size).toBe(2);
-    expect(generateBrims(round,DEFAULT_BRIM).objects.map(o=>boundsOf(o.footprint).minX)).toEqual([20,70]);
+    expect(round.objects.map(o=>boundsOf(sliceMesh(o.parts[0].mesh,0.1)).minX)).toEqual([20,70]);
   });
   it('preserves generic component grouping and unit transforms',()=>{
     const input=archive(`<object id="1">${meshXml(box(0,0,1,1,1))}</object><object id="2"><components><component objectid="1"/><component objectid="1" transform="1 0 0 0 1 0 0 0 1 2 0 0"/></components></object>`,'<item objectid="2"/>','<config/>',{},'inch');
     const p=importProject('inches.3mf',input); expect(p.objects).toHaveLength(1); expect(p.objects[0].parts).toHaveLength(2);
     const result=generateBrims(p,DEFAULT_BRIM); expect(boundsOf(result.objects[0].footprint).maxX).toBeCloseTo(76.2,3);
-    const round=importProject('out.3mf',ab(exportProject(p,result))); expect(round.objects[0].parts).toHaveLength(2); expect(boundsOf(generateBrims(round,DEFAULT_BRIM).objects[0].footprint).maxX).toBeCloseTo(76.2,3);
+    const round=importProject('out.3mf',ab(exportProject(p,result))); expect(round.objects[0].parts).toHaveLength(3);
+    round.objects[0].parts.slice(0,2).forEach((part,i) => {
+      const before=boundsOf(sliceMesh(p.objects[0].parts[i].mesh,0.1)), after=boundsOf(sliceMesh(part.mesh,0.1));
+      expect(after.minX).toBeCloseTo(before.minX,6); expect(after.maxX).toBeCloseTo(before.maxX,6);
+      expect(after.minY).toBeCloseTo(before.minY,6); expect(after.maxY).toBeCloseTo(before.maxY,6);
+    });
   });
   it('rejects invalid indices, cyclic references, and unsupported project formats',()=>{
     expect(()=>importProject('bad.3mf',archive('<object id="1"><components><component objectid="1"/></components></object>','<item objectid="1"/>'))).toThrow(/circular/);
