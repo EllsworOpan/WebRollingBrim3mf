@@ -7,6 +7,8 @@ import { importNativeProject, exportNativeProject } from './bambu-3mf';
 import { detectThreeMfDialect, type ThreeMfDialect } from './three-mf-dialect';
 import { importPrusa3Project, exportPrusa3Project } from './prusa3-3mf';
 import { xml, children, safePath, type Doc } from './three-mf-xml';
+import { cleanProject } from './clean-3mf';
+import { convertCleanProject } from './convert-3mf';
 import type { BrimResult, Project, SlicerFormat } from './types';
 
 type Archive = NonNullable<Project['source']> & { document: Doc };
@@ -19,7 +21,7 @@ const legacyAdapter: ThreeMfAdapter = {
     return importPrusaProject(name, archive.files, archive.modelPath, archive.document);
   },
   write(project, result, format, document) {
-    if (format === 'prusa3') throw new Error('PrusaSlicer 3 output requires a supported native alpha12 project.');
+    if (format === 'prusa3') return exportPrusa3Project(project,result);
     return format === 'prusa' ? exportPrusaProject(project, result, document) : exportNativeProject(project, result, format);
   },
 };
@@ -64,7 +66,9 @@ export function importProject(name: string, bytes: ArrayBuffer): Project {
   const { archive, adapter } = readArchive({ files, modelPath });
   return adapter.read(name, archive);
 }
-export function exportProject(project: Project, result: BrimResult, format: SlicerFormat = project.format && project.format !== 'generic' ? project.format : 'prusa'): Uint8Array {
+export function exportProject(project: Project, result: BrimResult, format: SlicerFormat = project.format && project.format !== 'generic' ? project.format : 'prusa', options: { clean?: boolean } = {}): Uint8Array {
+  if (options.clean) project = project.source && format !== (project.format === 'generic' ? 'prusa' : project.format)
+    ? convertCleanProject(project,format) : cleanProject(project);
   const input = project.source ? readArchive(project.source) : undefined;
   const adapter = input?.adapter || legacyAdapter;
   if (project.format && project.format !== 'generic' && project.format !== format) throw new Error('Native projects must be exported to their original slicer.');

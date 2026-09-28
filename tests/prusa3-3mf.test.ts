@@ -111,11 +111,15 @@ describe('PrusaSlicer 3 alpha12 native projects', () => {
     expect(metadata(output).config_containers).toEqual(JSON.parse(strFromU8(p.source!.files[P3_PROJECT])).config_containers);
   });
 
-  it('keeps the source format locked and rejects mesh-only Prusa 3 exports', () => {
+  it('keeps the source format locked and supports mesh-only Prusa 3 exports', () => {
     const p = open(fixture()), result = generateBrims(p,DEFAULT_BRIM);
     expect(() => exportProject(p,result,'prusa')).toThrow(/original slicer/);
     expect(() => exportProject(p,result,'orca')).toThrow(/original slicer/);
     const generic = importProject('box.stl',stl(box()));
-    expect(() => exportProject(generic,generateBrims(generic,DEFAULT_BRIM),'prusa3')).toThrow(/requires a supported native/);
+    const output = exportProject(generic,generateBrims(generic,DEFAULT_BRIM),'prusa3');
+    const round = open(output);
+    expect(round.format).toBe('prusa3');
+    expect(round.objects[0].parts.map(p => p.name)).toEqual(['box.stl','Rolling brim']);
+    expect(metadata(output).config_containers).toEqual([]);
   });
 });

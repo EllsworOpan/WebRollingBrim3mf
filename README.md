@@ -1,6 +1,6 @@
 # Rolling Brim 3MF
 
-A browser workbench for adding rolling-brim **mesh parts** to STL, OBJ and 3MF models. Each selected model gets its own aligned brim part and slicer-specific overrides in a downloadable 3MF for PrusaSlicer 2.x, Bambu Studio or OrcaSlicer. Native PrusaSlicer **3.0.0-alpha12** projects also have experimental support with strict compatibility checks. Built from WebRollingBrim's interface and rolling-circle geometry.
+A browser workbench for adding rolling-brim **mesh parts** to STL, OBJ and 3MF models. Each selected model gets its own aligned brim part and slicer-specific overrides in a downloadable 3MF for PrusaSlicer 2.x, PrusaSlicer **3.0.0-alpha12** (experimental), Bambu Studio or OrcaSlicer. Native PrusaSlicer 3 projects have strict compatibility checks. Built from WebRollingBrim's interface and rolling-circle geometry.
 
 **Files stay in your browser.** Import, preview, brim generation and export run locally on your device. Heavy geometry processing runs in a Web Worker. No backend, account or model upload is required, including on GitHub Pages.
 
@@ -118,7 +118,19 @@ The original archive is the source of truth. Configuration and material tables a
 
 Brim controls apply across the project. Use a first-layer height that matches every object receiving a brim; different bed/tool heights produce a note instead of choosing one silently. Each preview/export starts from the unchanged upload. The preview does not render plates, painting or wipe towers. Check plate edges, exclusion zones, wipe-tower clearance and collisions in the slicer; move the object with its attached brim as needed.
 
-STL, OBJ and unconfigured generic 3MF inputs have an **Output slicer** choice. These exports contain geometry and part settings without injecting a printer or filament profile. Native projects retain their original slicer format; cross-slicer profile conversion is not offered. Open downloads as projects to retain part settings.
+STL and OBJ inputs show only the **Output slicer** choice. For 3MF inputs, **Safe mode: clean 3MF** appears above it; the output choice is locked until safe mode is on. Turning safe mode off restores the original slicer (Prusa 2.x for generic 3MF). STL/OBJ exports contain geometry and part settings without injecting a printer or filament profile. Open downloads as projects to retain part settings.
+
+### Safe mode: clean 3MF
+
+For an imported 3MF, **Safe mode: clean 3MF** is an optional export toggle, off by default and reset when opening another file. It constructs a new archive from an allowlist of meshes, ordered triangle corners, transforms, names, part roles, printability, color paint and its material references. The existing exporter then adds the current rolling brim and its overrides, just as for an STL. It does not repair the original archive or try to understand discarded data. Changing the toggle clears a prepared download; the original upload stays unchanged. Clean downloads end in `-rolling-brim-clean.3mf`.
+
+Source print/printer/filament settings, object/part overrides (except color assignments), source file paths, layer settings, custom G-code, support/seam/fuzzy painting, thumbnails, cached toolpaths and unknown sidecars are omitted. Color paint stays attached to the same triangle corners; it is not transferred to the new brim. Structural plate references and material-group bed origins remain where required for placement and color scope. Prusa 3 retains material-slot routing descriptors and opaque virtual-extruder recipes, with new placeholder preset records; source profile values and preset selections are discarded. Orca gets a fresh default purge-table scaffold because its loader cannot reopen a palette alone. These are format dependencies, not restored source settings.
+
+Open as a project, then choose the printer, filament and print profiles again and match the brim’s first-layer height. Verify color-slot mapping and purge settings after choosing profiles. Some slicer import paths, including Bambu’s profile-free CLI import, use the active profile’s palette; the stored color masks and assignments remain in the clean 3MF. Geometry and part roles are retained even for unchecked/nonprintable objects; modifier setting overrides are discarded with other source settings. Normal export remains the way to keep the full source project.
+
+Safe mode can bypass failures in unrelated export metadata, but requires the file to pass the existing geometry import checks. It is not an importer for corrupt geometry or unsupported 3MF structures.
+
+With safe mode on, choosing another output slicer rebuilds the package using that slicer’s geometry, part-role and color-paint structures. Compatible MMU/AMS triangle paint is copied as opaque data with its ordered corners and slot assignments; source profiles and plate layout metadata are not converted. Conversion to Prusa 3 uses the active profile’s palette: set material colors again in that slicer. Prusa 3 blend/gradient recipes, extended paint encodings, differing per-bed palettes, core 3MF material resources, and painted mirrored part transforms when targeting Prusa 2 cannot currently be converted; export reports the limitation and asks you to retain the original slicer instead of silently losing paint.
 
 ### Bambu Studio and OrcaSlicer
 
@@ -132,7 +144,7 @@ Experimental native support targets **3.0.0-alpha12**. It supports multiple tool
 
 Other Prusa 3 versions, changed geometry/reference structures, external model resources, SLA, vase mode and rafts are rejected. Bed metadata is copied without interpreting its geometry, so nonrectangular or overlapping beds and objects outside/across beds do not prevent import. Additional object/volume structures such as layer ranges or editable text/embossing remain unsupported. Unfamiliar configuration keys, painting payloads and unrelated archive sidecars are copied without interpretation. This is a compatibility check for the data the app uses, not a complete validator for every slicer setting.
 
-Native Prusa 3 output requires supported native input. Mesh-only output still offers PrusaSlicer 2.x, Bambu Studio and OrcaSlicer. See the [format and validation details](docs/prusaslicer-3-readiness.md).
+STL, OBJ and unannotated generic 3MF can also export directly to PrusaSlicer 3.0 alpha12. These files use native object/volume settings with no embedded printer or filament profile. Annotated generic 3MF conversion remains restricted to avoid losing painting. See the [format and validation details](docs/prusaslicer-3-readiness.md).
 
 ### Shared behavior and other formats
 

@@ -73,8 +73,16 @@ and rafts. Additional
 object/volume structures (for example height ranges or editable text metadata)
 remain rejected until their effect on touched references/settings is understood.
 
-Native Prusa 3 output requires supported native input. Generic mesh output uses
-the existing Prusa 2.x, Bambu Studio or OrcaSlicer adapters.
+STL, OBJ and unannotated generic 3MF also export to native Prusa 3 alpha12. A
+new mesh → volume → object hierarchy carries brim overrides with an empty
+configuration-container list, so PrusaSlicer supplies the selected profile.
+
+Optional clean export creates a new archive from geometry, role/placement and
+color data before adding the brim. Only MMU facet annotations survive; support,
+seam and fuzzy annotations are omitted. Color-slot routing descriptors, palette,
+virtual-extruder recipes and bed origins/shape needed to scope material groups
+remain. Preset records are new placeholders and source profile values, custom
+G-code and unknown sidecars are discarded. See the [safe-mode workflow](../README.md#safe-mode-clean-3mf).
 
 ## Validation
 

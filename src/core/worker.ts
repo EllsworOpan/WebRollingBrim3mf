@@ -40,7 +40,7 @@ self.onmessage = ({ data }: MessageEvent<WorkerRequest>) => {
       if (data.type === 'generate') send({ type: 'generated', id: data.id, result });
       else {
         const slicer = data.format || (project.format && project.format !== 'generic' ? project.format : 'prusa');
-        send({ type: 'exported', id: data.id, bytes: exportProject(project, result, slicer), slicer, filename: `${project.name.replace(/\.(stl|obj|3mf)$/i, '')}-rolling-brim.3mf` });
+        send({ type: 'exported', id: data.id, bytes: exportProject(project, result, slicer, {clean:data.clean}), slicer, filename: `${project.name.replace(/\.(stl|obj|3mf)$/i, '')}-rolling-brim${data.clean ? '-clean' : ''}.3mf` });
       }
     }
   } catch (error) { send({ type: 'error', id: data.id, message: error instanceof Error ? error.message : String(error) }); }

@@ -3,6 +3,7 @@ import { transformMesh } from './mesh';
 import { MIN_LAYER_HEIGHT, MAX_LAYER_HEIGHT } from './first-layer';
 import { NS, xml, serialize, children, child, matrix, readMesh, checkIds, type Doc, type El } from './three-mf-xml';
 import { configuration, record, list, keys, integer, fail, type JsonObject } from './prusa3-config';
+import { packageFiles } from './three-mf-package';
 import type { Project, ModelObject, ModelPart, BrimResult, Mesh } from './types';
 
 const PRUSA3_VERSION = 'PrusaSlicer-3.0.0-alpha12';
@@ -162,10 +163,40 @@ function meshResource(doc: Doc, id: string, mesh: Mesh): El {
   for (let i=0;i<mesh.triangles.length;i+=3) { const t = doc.createElementNS(NS,'triangle'); ['v1','v2','v3'].forEach((k,j) => t.setAttribute(k,String(mesh.triangles[i+j]))); triangles.appendChild(t); }
   return object;
 }
+function freshArchive(project: Project): NonNullable<Project['source']> {
+  const modelPath = '3D/3dmodel.model';
+  const doc = xml(`<model xmlns="${NS}" unit="millimeter"><metadata name="Application">${PRUSA3_VERSION}</metadata><resources/><build/></model>`);
+  const resources = child(doc.documentElement,'resources'), build = child(doc.documentElement,'build');
+  const objects: JsonObject[] = [];
+  let id = 1;
+  for (const object of project.objects) {
+    const parent = doc.createElementNS(NS,'object'), components = doc.createElementNS(NS,'components');
+    parent.setAttribute('name',object.name); parent.appendChild(components);
+    const volumes: JsonObject[] = [];
+    for (const part of object.parts) {
+      const meshId = id++, volumeId = id++;
+      resources.appendChild(meshResource(doc,String(meshId),part.mesh));
+      const volume = doc.createElementNS(NS,'object'), refs = doc.createElementNS(NS,'components'), ref = doc.createElementNS(NS,'component');
+      volume.setAttribute('id',String(volumeId)); volume.setAttribute('name',part.name);
+      ref.setAttribute('objectid',String(meshId)); refs.appendChild(ref); volume.appendChild(refs); resources.appendChild(volume);
+      const component = doc.createElementNS(NS,'component'); component.setAttribute('objectid',String(volumeId)); components.appendChild(component);
+      volumes.push({id:volumeId,type:part.kind,volume_settings:{}});
+    }
+    const parentId = id++; parent.setAttribute('id',String(parentId)); resources.appendChild(parent);
+    const item = doc.createElementNS(NS,'item'); item.setAttribute('objectid',String(parentId)); build.appendChild(item);
+    objects.push({id:parentId,volumes,object_settings:{}});
+  }
+  // No configuration container means the slicer supplies the user's profile.
+  const files = packageFiles(modelPath);
+  files[modelPath] = serialize(doc);
+  files[PROJECT] = strToU8(JSON.stringify({project:{id:'00000000-0000-4000-8000-000000000001',version:0},objects,config_containers:[]}));
+  return {files,modelPath};
+}
 export function exportPrusa3Project(project: Project, result: BrimResult, modelDocument?: Doc): Uint8Array {
-  if (!project.source || project.format !== 'prusa3') fail('Native PrusaSlicer 3 input is required.');
   if (!result.objects.some(o => o.mesh.triangles.length)) throw new Error('Generate at least one brim before exporting.');
-  const source = project.source!, files = {...source.files}, a = archive(files,source.modelPath,modelDocument);
+  const native = project.format === 'prusa3' || modelDocument !== undefined;
+  if (!native && project.source && Object.entries(project.source.files).some(([path,bytes]) => /\.model$/i.test(path) && /(?:\bpid=|\bp[123]=|\bpaint[_:]|\bslic3rpe:)/.test(strFromU8(bytes)))) throw new Error('This annotated generic 3MF cannot be converted without losing painting. Use PrusaSlicer 2.x output.');
+  const source = native ? project.source! : freshArchive(project), files = {...source.files}, a = archive(files,source.modelPath,native ? modelDocument : undefined);
   const instances = a.instances;
   let id = children(a.resources,'object').reduce((max,o) => Math.max(max,Number(o.getAttribute('id'))),0)+1;
   const output: JsonObject[] = [], outputPainting: JsonObject[] = [...a.painting];
@@ -191,7 +222,8 @@ export function exportPrusa3Project(project: Project, result: BrimResult, modelD
       for (const v of volumes) if (v.type === 'ModelPart') v.volume_settings = {...record(v.volume_settings ?? {},'volume settings'),elefant_foot_compensation:0};
     }
     const transform = matrix(i.item.getAttribute('transform'));
-    const brim = i.printable && result.objects.find(o => o.id === `object-${i.index}`);
+    const objectId = native ? `object-${i.index}` : project.objects[i.index]?.id;
+    const brim = i.printable && result.objects.find(o => o.id === objectId);
     if (brim && brim.mesh.triangles.length) {
       const meshId = id++, volumeId = id++;
       a.resources.appendChild(meshResource(a.doc,String(meshId),transformMesh(brim.mesh,transform.clone().invert())));

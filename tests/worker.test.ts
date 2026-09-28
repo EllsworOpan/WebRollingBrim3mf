@@ -23,6 +23,17 @@ describe('model worker lifecycle', () => {
   });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 
+  it('switches between clean and normal exports without changing the uploaded checkpoint', () => {
+    const input = paintedSeed('start_gcode = M117 keep original');
+    send({type:'load',id:1,name:'painted.3mf',bytes:input});
+    const request = {type:'export' as const,settings:DEFAULT_BRIM,enabled:['object-0']};
+    const normal = send({...request,id:2}), clean = send({...request,id:3,clean:true}), restored = send({...request,id:4,clean:false});
+    expect(clean).toMatchObject({type:'exported',filename:'painted-rolling-brim-clean.3mf'});
+    if (normal.type !== 'exported' || clean.type !== 'exported' || restored.type !== 'exported') throw new Error('Expected exports');
+    expect(strFromU8(unzipSync(clean.bytes)['Metadata/Slic3r_PE.config'])).not.toContain('start_gcode');
+    expect(unzipSync(restored.bytes)).toEqual(unzipSync(normal.bytes));
+  });
+
   it('reports optimization progress and returns a verified preview that can be exported', async () => {
     vi.useFakeTimers();
     send({type:'load',id:1,name:'box.stl',bytes:stl(box())});
