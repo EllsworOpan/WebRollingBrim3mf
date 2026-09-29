@@ -21,16 +21,16 @@ describe('3MF dialect routing', () => {
     'Metadata/Slic3r_facets_annotation.json',
     'metadata/prusaslicer3_project.json',
   ])('rejects %s instead of silently reading generic geometry', path => {
-    expect(() => importProject('future.3mf', fixture({[path]:'{}'}))).toThrow(/Unsupported PrusaSlicer 3\.0 project/);
+    expect(() => importProject('future.3mf', fixture({[path]:'{}'}))).toThrow(/Unsupported PrusaSlicer 3\.x project/);
   });
 
   it.each(['PrusaSlicer-3.0.0-alpha12', 'PrusaSlicer-3.0.0', 'PrusaSlicer-4.1.0'])('detects %s even without its project JSON', application => {
-    expect(() => importProject('future.3mf', fixture({}, application))).toThrow(/Unsupported PrusaSlicer 3\.0 project/);
+    expect(() => importProject('future.3mf', fixture({}, application))).toThrow(/Unsupported PrusaSlicer 3\.x project/);
   });
 
   it('checks new-format markers before legacy or Bambu/Orca fallback, including malformed JSON', () => {
     const input = fixture({'Metadata/PrusaSlicer3_project.json':'not JSON', 'Metadata/model_settings.config':'<config/>'}, 'PrusaSlicer-2.9.6', true);
-    expect(() => importProject('hybrid.3mf', input)).toThrow(/Unsupported PrusaSlicer 3\.0 project/);
+    expect(() => importProject('hybrid.3mf', input)).toThrow(/Unsupported PrusaSlicer 3\.x project/);
   });
 
   it.each(['PrusaSlicer-2.9.6', 'ThirdPartyTool-3.0.0'])('keeps supported input from %s working', application => {

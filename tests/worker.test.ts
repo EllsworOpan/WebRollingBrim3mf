@@ -84,7 +84,7 @@ describe('model worker lifecycle', () => {
     send({type:'load',id:1,name:'old.stl',bytes:stl(box())});
     const files = unzipSync(new Uint8Array(paintedSeed('')));
     files['Metadata/PrusaSlicer3_project.json'] = strToU8('{"config_containers":[]}');
-    expect(send({type:'load',id:2,name:'prusa3.3mf',bytes:zipSync(files).slice().buffer})).toMatchObject({type:'error',message:expect.stringContaining('PrusaSlicer 3.0')});
+    expect(send({type:'load',id:2,name:'prusa3.3mf',bytes:zipSync(files).slice().buffer})).toMatchObject({type:'error',message:expect.stringContaining('PrusaSlicer 3.x')});
     expect(send({type:'export',id:3,settings:DEFAULT_BRIM,enabled:['object-0']})).toMatchObject({type:'error',message:expect.stringContaining('Load a model')});
     expect(send({type:'load',id:4,name:'new.stl',bytes:stl(box())})).toMatchObject({type:'loaded'});
   });
