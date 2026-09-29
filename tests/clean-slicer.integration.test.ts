@@ -40,8 +40,9 @@ for (const format of ['prusa','prusa3','bambu','orca'] as const) it.skipIf(!exis
   if (format === 'prusa3') {
     const before = JSON.parse(strFromU8(unzipSync(exported)['Metadata/PrusaSlicer3_project.json']));
     const after = JSON.parse(strFromU8(files['Metadata/PrusaSlicer3_project.json']));
-    expect(after.config_containers.map((c: {virtual_extruders:unknown}) => c.virtual_extruders)).toEqual(before.config_containers.map((c: {virtual_extruders:unknown}) => c.virtual_extruders));
-    expect(after.config_containers.map((c: {configuration:{project_settings:{extruder_colour:unknown}}}) => c.configuration.project_settings.extruder_colour)).toEqual(before.config_containers.map((c: {configuration:{project_settings:{extruder_colour:unknown}}}) => c.configuration.project_settings.extruder_colour));
+    expect(before.config_containers).toEqual([]);
+    expect(after.objects.map((o: {object_settings:{extruder:number}}) => o.object_settings.extruder)).toEqual(before.objects.map((o: {object_settings:{extruder:number}}) => o.object_settings.extruder));
+    expect(paintedFaces(bytes)).toEqual(paintedFaces(exported));
     expect(after.objects.flatMap((o: {volumes:{volume_settings:{perimeters?:number}}[]}) => o.volumes).some((v: {volume_settings:{perimeters?:number}}) => v.volume_settings.perimeters === 99)).toBe(true);
     const paint = JSON.parse(strFromU8(files['Metadata/Slic3r_facets_annotation.json']));
     expect(paint.some((p: {mmSegmentationFacets:unknown[]}) => p.mmSegmentationFacets?.length)).toBe(true);

@@ -78,11 +78,15 @@ new mesh → volume → object hierarchy carries brim overrides with an empty
 configuration-container list, so PrusaSlicer supplies the selected profile.
 
 Optional clean export creates a new archive from geometry, role/placement and
-color data before adding the brim. Only MMU facet annotations survive; support,
-seam and fuzzy annotations are omitted. Color-slot routing descriptors, palette,
-virtual-extruder recipes and bed origins/shape needed to scope material groups
-remain. Preset records are new placeholders and source profile values, custom
-G-code and unknown sidecars are discarded. See the [safe-mode workflow](../README.md#safe-mode-clean-3mf).
+numbered color regions before applying RollingBrim. Only MMU facet annotations
+survive; support, seam and fuzzy annotations are omitted. The output has an empty
+`config_containers` list: no hardware, nozzle descriptors, presets, bed settings,
+palette configuration or virtual-extruder recipes are embedded. Blend/gradient
+assignments become flat, assignable region IDs; their mixing behavior is discarded.
+Our brim settings and zero elephant-foot compensation on printable models remain,
+while inherited source overrides, G-code and unknown sidecars are discarded.
+Assign materials to the region numbers in the slicer. See the
+[safe-mode workflow](../README.md#safe-mode-clean-3mf).
 
 ## Validation
 

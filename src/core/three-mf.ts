@@ -9,6 +9,7 @@ import { importPrusa3Project, exportPrusa3Project } from './prusa3-3mf';
 import { xml, children, safePath, type Doc } from './three-mf-xml';
 import { cleanProject } from './clean-3mf';
 import { convertCleanProject } from './convert-3mf';
+import { translatePaint } from './paint-codec';
 import type { BrimResult, Project, SlicerFormat } from './types';
 
 type Archive = NonNullable<Project['source']> & { document: Doc };
@@ -69,6 +70,13 @@ export function importProject(name: string, bytes: ArrayBuffer): Project {
 export function exportProject(project: Project, result: BrimResult, format: SlicerFormat = project.format && project.format !== 'generic' ? project.format : 'prusa', options: { clean?: boolean } = {}): Uint8Array {
   if (options.clean) project = project.source && format !== (project.format === 'generic' ? 'prusa' : project.format)
     ? convertCleanProject(project,format) : cleanProject(project);
+  // Saving opaque bytes alone cannot validate Orca's 16-slot painting decoder.
+  if (format === 'orca' && project.source) for (const [path,bytes] of Object.entries(project.source.files)) {
+    if (!path.endsWith('.model')) continue;
+    const doc = xml(strFromU8(bytes));
+    for (const node of Array.from(doc.getElementsByTagName('*'))) if (node.localName === 'triangle' && node.hasAttribute('paint_color'))
+      translatePaint(node.getAttribute('paint_color')!,'orca','orca');
+  }
   const input = project.source ? readArchive(project.source) : undefined;
   const adapter = input?.adapter || legacyAdapter;
   if (project.format && project.format !== 'generic' && project.format !== format) throw new Error('Native projects must be exported to their original slicer.');

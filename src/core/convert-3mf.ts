@@ -7,13 +7,13 @@ import { importPrusaProject } from './prusa-3mf';
 import { importNativeProject } from './bambu-3mf';
 import { importPrusa3Project } from './prusa3-3mf';
 import type { Mesh, Project, SlicerFormat } from './types';
+import { translatePaint } from './paint-codec';
 
 interface Part { name: string; kind: string; mesh: Mesh; transform: Matrix4; paint: string[]; extruder?: string }
 interface ObjectData { name: string; parts: Part[]; transform: Matrix4; printable: boolean; extruder?: string }
 interface P3Object { id: number; object_settings?: {extruder?: number}; volumes: {id:number;type:string;volume_settings?:{extruder?:number}}[]; instances?: {ord:number;printable:boolean}[] }
 interface P3Paint { id:number;mmSegmentationFacetsVersion?:number;mmSegmentationFacets?:{triangle:number;dividing:string}[] }
-interface P3Container { virtual_extruders?: unknown[]; configuration: {project_settings?:{extruder_colour?:string[]};filament_settings?:{filament_colour?:string[]}} }
-interface P3Data { objects:P3Object[];config_containers:P3Container[] }
+interface P3Data { objects:P3Object[] }
 const ROLES: Record<string,string> = {normal_part:'ModelPart',negative_part:'NegativeVolume',modifier_part:'ParameterModifier',support_enforcer:'SupportEnforcer',support_blocker:'SupportBlocker'};
 const P3 = 'Metadata/PrusaSlicer3_project.json', PAINT = 'Metadata/Slic3r_facets_annotation.json';
 const unsupported = (reason: string): never => { throw new Error(`${reason} Keep the original output slicer to preserve this color data.`); };
@@ -21,7 +21,7 @@ const slot = (value: unknown) => value === undefined || value === null || value 
 const transformText = (m: Matrix4) => m.elements.filter((_,i) => i%4 !== 3).join(' ');
 
 /** Read the small geometry/color contract shared by the clean target writers.
- * Paint payloads stay opaque, with exactly the same triangle order and corners.
+ * Paint is normalized to Prusa encoding, with the same triangle order/corners.
  * No printer profiles or source archive entries enter the new target package.
  */
 function readCleanObjects(project: Project) {
@@ -39,17 +39,8 @@ function readCleanObjects(project: Project) {
   const configs = files[configPath] ? children(xml(strFromU8(files[configPath])).documentElement,'object') : [];
   const p3: P3Data | undefined = project.format === 'prusa3' ? JSON.parse(strFromU8(files[P3])) : undefined;
   const annotations: P3Paint[] = p3 && files[PAINT] ? JSON.parse(strFromU8(files[PAINT])) : [];
-  if (p3?.config_containers.some(c => c.virtual_extruders?.length)) unsupported('PrusaSlicer 3 blend/gradient material recipes cannot be converted to another slicer.');
-  const palettes = p3?.config_containers.map(c => c.configuration.project_settings?.extruder_colour || c.configuration.filament_settings?.filament_colour || []) || [];
-  if (palettes.some(p => JSON.stringify(p) !== JSON.stringify(palettes[0]))) unsupported('This project uses different color-slot palettes on different beds.');
-  let palette: string[] = palettes[0] || [];
-  if (native && files['Metadata/project_settings.config']) palette = JSON.parse(strFromU8(files['Metadata/project_settings.config'])).filament_colour || [];
-  if (!native && !p3 && files['Metadata/Slic3r_PE.config']) {
-    const profile = strFromU8(files['Metadata/Slic3r_PE.config']);
-    const value = (key:string) => profile.match(new RegExp(`^;?\\s*${key}\\s*=\\s*(.*)$`,'m'))?.[1].trim();
-    const colors = value('extruder_colour') || value('filament_colour');
-    palette = colors ? colors.split(';') : [];
-  }
+  // Settings, palette swatches, hardware routing and mixing recipes are outside
+  // the clean contract. Preserve their numeric assignments as color-region IDs.
   const collect = (path:string,id:string,transform:Matrix4,cfg?:El,seen=new Set<string>()): Part[] => {
     const key = `${path}#${id}`;
     if (seen.has(key) || seen.size > 64) throw new Error('The 3MF has circular or excessive component nesting.');
@@ -63,9 +54,13 @@ function readCleanObjects(project: Project) {
     });
     const mesh = readMesh(body), triangles = children(child(body,'triangles'),'triangle');
     if (triangles.some(t => ['pid','p1','p2','p3'].some(k => t.hasAttribute(k)))) unsupported('Core 3MF material/color resources cannot yet be converted between slicers.');
-    const paint = triangles.map(t => t.getAttribute('slic3rpe:mmu_segmentation') || t.getAttribute('paint_color') || '');
+    const paint = triangles.map(t => {
+      const prusa = t.getAttribute('slic3rpe:mmu_segmentation') || '', bambu = t.getAttribute('paint_color') || '';
+      const payload = native ? bambu : prusa || bambu;
+      return translatePaint(payload, project.format === 'orca' ? 'orca' : native || !prusa ? 'bambu' : 'prusa','prusa').hex;
+    });
     const version = children(model(path).documentElement,'metadata').find(m => /:MmPaintingVersion$/.test(m.getAttribute('name') || ''));
-    if (paint.some(Boolean) && version && Number(version.textContent) > 1) unsupported('This file uses a newer color-paint encoding that cannot yet be converted.');
+    if (paint.some(Boolean) && version && ![1,2].includes(Number(version.textContent))) unsupported('This file uses an unknown color-paint version.');
     const volumes = cfg ? children(cfg,'volume') : [];
     if (volumes.length) return volumes.map(v => {
       const first = Number(v.getAttribute('firstid')), last = Number(v.getAttribute('lastid'));
@@ -86,11 +81,11 @@ function readCleanObjects(project: Project) {
       const volume = data.volumes[i], target = ref(c,modelPath);
       const parts = collect(target.path,target.id,matrix(c.getAttribute('transform')));
       const paint = annotations.find(p => p.id === volume.id);
-      if (paint?.mmSegmentationFacets?.length && paint.mmSegmentationFacetsVersion !== 1) unsupported('This PrusaSlicer 3 file uses extended color painting that cannot yet be converted.');
+      if (paint?.mmSegmentationFacets?.length && ![1,2].includes(paint.mmSegmentationFacetsVersion!)) unsupported('This PrusaSlicer 3 file uses an unknown color-paint version.');
       const part = parts[0]; part.name = resource(target.path,target.id).getAttribute('name') || part.name; part.kind = volume.type; part.extruder = slot(volume.volume_settings?.extruder);
       for (const facet of paint?.mmSegmentationFacets || []) {
         if (!Number.isInteger(facet.triangle) || facet.triangle < 0 || facet.triangle >= part.paint.length || typeof facet.dividing !== 'string') unsupported('This project has color annotations that cannot be mapped to its meshes.');
-        part.paint[facet.triangle] = facet.dividing;
+        part.paint[facet.triangle] = translatePaint(facet.dividing,'prusa','prusa').hex;
       }
       return parts;
     });
@@ -98,11 +93,17 @@ function readCleanObjects(project: Project) {
     const printable = data ? !data.instances?.some(i => i.ord === index && !i.printable) : !['0','false'].includes(item.getAttribute('printable') || '');
     return {name:loaded?.name || meta(cfg,'name') || parent.getAttribute('name') || parts[0].name,parts,transform:matrix(item.getAttribute('transform'),units[root.getAttribute('unit') || 'millimeter']),printable,extruder:slot(data?.object_settings?.extruder ?? meta(cfg,'extruder'))};
   });
-  return {objects,palette};
+  return {objects};
 }
 
 export function convertCleanProject(project: Project, format: SlicerFormat): Project {
-  const {objects,palette} = readCleanObjects(project), modelPath = '3D/3dmodel.model';
+  const {objects} = readCleanObjects(project), modelPath = '3D/3dmodel.model';
+  let paintingVersion = 1;
+  for (const object of objects) for (const part of object.parts) part.paint = part.paint.map(hex => {
+    const result = translatePaint(hex,'prusa',format === 'bambu' ? 'bambu' : format === 'orca' ? 'orca' : 'prusa');
+    if (result.maxState > 16) paintingVersion = 2;
+    return result.hex;
+  });
   const doc = xml(`<model xmlns="${NS}" xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06" unit="millimeter"><resources/><build/></model>`);
   const resources = child(doc.documentElement,'resources'), build = child(doc.documentElement,'build'), config = xml('<config/>');
   const files = packageFiles(modelPath), objectConfigs: P3Object[] = [], painting: P3Paint[] = [];
@@ -127,7 +128,7 @@ export function convertCleanProject(project: Project, format: SlicerFormat): Pro
     }
   };
   if (format === 'prusa3') metadata('Application','PrusaSlicer-3.0.0-alpha12');
-  else if (format === 'prusa') { metadata('slic3rpe:Version3mf','1'); metadata('slic3rpe:MmPaintingVersion','1'); }
+  else if (format === 'prusa') { metadata('slic3rpe:Version3mf','1'); metadata('slic3rpe:MmPaintingVersion',String(paintingVersion)); }
   else { metadata('Application','RollingBrim-0.1.0'); metadata('RollingBrim:TargetSlicer',format); metadata('BambuStudio:3mfVersion','1'); metadata('BambuStudio:MmPaintingVersion','1'); }
   let id = 1;
   const plate = format === 'bambu' || format === 'orca' ? cfgNode('plate',config.documentElement) : undefined;
@@ -153,7 +154,7 @@ export function convertCleanProject(project: Project, format: SlicerFormat): Pro
           partId = id++; const volume = node('object',resources,{id:String(partId),name:part.name});
           node('component',node('components',volume),{objectid:String(meshId)});
           volumes.push({id:partId,type:part.kind,volume_settings:part.extruder === undefined ? {} : {extruder:Number(part.extruder)}});
-          if (part.paint.some(Boolean)) painting.push({id:partId,mmSegmentationFacetsVersion:1,mmSegmentationFacets:part.paint.flatMap((dividing,triangle) => dividing ? [{triangle,dividing}] : [])});
+          if (part.paint.some(Boolean)) painting.push({id:partId,mmSegmentationFacetsVersion:paintingVersion,mmSegmentationFacets:part.paint.flatMap((dividing,triangle) => dividing ? [{triangle,dividing}] : [])});
         } else {
           const partCfg = cfgNode('part',cfg!,{id:String(partId),subtype:Object.keys(ROLES).find(key => ROLES[key] === part.kind)!});
           setting(partCfg,'name',part.name); setting(partCfg,'extruder',part.extruder);
@@ -179,10 +180,8 @@ export function convertCleanProject(project: Project, format: SlicerFormat): Pro
   }
   if (format === 'prusa') {
     files['Metadata/Slic3r_PE_model.config'] = serialize(config);
-    if (palette.length) files['Metadata/Slic3r_PE.config'] = strToU8(`; filament_colour = ${palette.join(';')}\n; extruder_colour = ${palette.join(';')}\n`);
     return importPrusaProject(project.name,files,modelPath,doc);
   }
   files['Metadata/model_settings.config'] = serialize(config);
-  if (palette.length) files['Metadata/project_settings.config'] = strToU8(JSON.stringify({filament_colour:palette,...(format === 'orca' ? {flush_volumes_matrix:Array.from({length:palette.length**2},(_,i) => String(Math.floor(i/palette.length) === i%palette.length ? 0 : 280)),flush_volumes_vector:Array(palette.length*2).fill('140')} : {})}));
   return importNativeProject(project.name,files,modelPath,doc);
 }
