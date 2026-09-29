@@ -6,7 +6,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { importProject, exportProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
-import { child, children, matrix, xml, serialize } from '../src/core/three-mf-xml';
+import { child, children, matrix, xml, serialize } from '../src/vendor/three-mf/compat/three-mf-xml.js';
 import { boundsOf } from '../src/core/geometry';
 import { sliceMesh } from '../src/core/mesh';
 import { P3_MODEL, P3_PROJECT } from './prusa3-fixtures';

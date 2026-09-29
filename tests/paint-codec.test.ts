@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { translatePaint } from '../src/core/paint-codec';
+import { translatePaint } from '../src/vendor/three-mf/compat/paint-codec.js';
 
 describe('vendor paint encodings', () => {
   it.each([

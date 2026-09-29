@@ -6,7 +6,7 @@ import { strFromU8, unzipSync } from 'fflate';
 import { exportProject, importProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
-import { children, child, xml, meta } from '../src/core/three-mf-xml';
+import { children, child, xml, meta } from '../src/vendor/three-mf/compat/three-mf-xml.js';
 import { box, stl } from './fixtures';
 import { nativeFixture } from './native-fixtures';
 import { paintedFaces } from './converted-fixtures';
@@ -75,7 +75,8 @@ for (const format of ['prusa','prusa3','bambu','orca'] as const) it.skipIf(!exis
     const paint = JSON.parse(strFromU8(files['Metadata/Slic3r_facets_annotation.json']));
     expect(paint.some((p: {mmSegmentationFacets:{dividing:string}[]}) => p.mmSegmentationFacets?.some(f => f.dividing === '4'))).toBe(true);
     const data = JSON.parse(strFromU8(files['Metadata/PrusaSlicer3_project.json']));
-    expect(data.objects[0].object_settings.extruder).toBe(JSON.parse(strFromU8(unzipSync(bytes)['Metadata/PrusaSlicer3_project.json'])).objects[0].object_settings.extruder);
+    // Prusa writes an explicit zero for an omitted inherited/default extruder.
+    expect(data.objects[0].object_settings.extruder ?? 0).toBe(JSON.parse(strFromU8(unzipSync(bytes)['Metadata/PrusaSlicer3_project.json'])).objects[0].object_settings.extruder ?? 0);
     expect(JSON.parse(strFromU8(unzipSync(bytes)['Metadata/PrusaSlicer3_project.json'])).config_containers).toEqual([]);
   } else expect(Object.entries(files).filter(([k]) => k.endsWith('.model')).some(([,b]) => strFromU8(b).includes(format === 'prusa' ? 'slic3rpe:mmu_segmentation="4"' : 'paint_color="4"'))).toBe(true);
 },90000);

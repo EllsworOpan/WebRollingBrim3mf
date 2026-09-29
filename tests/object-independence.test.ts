@@ -1,3 +1,5 @@
+import { DOMParser } from '@xmldom/xmldom';
+import { strFromU8, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 import { Matrix4 } from 'three';
 import { generateBrims } from '../src/core/brim';
@@ -92,7 +94,7 @@ describe('each imported object is an independent brim job', () => {
   it('applies negative volumes only to their parent and preserves every modifier role on export', () => {
     const p = project([box(20,20,60,60),box(40,40)]);
     p.objects[0].parts.push({name:'Cutout',kind:'NegativeVolume',mesh:box(35,35,30,30)});
-    for (const kind of ['ParameterModifier','SupportEnforcer','SupportBlocker']) {
+    for (const kind of ['ParameterModifier','SupportEnforcer','SupportBlocker'] as const) {
       p.objects[0].parts.push({name:kind,kind,mesh:box(0,0,100,100)});
     }
     const opts = {...DEFAULT_BRIM,holes:true}, result = generateBrims(p,opts);
@@ -111,9 +113,9 @@ describe('each imported object is an independent brim job', () => {
   it.each([['object-0'],['object-1'],['object-0','object-1']].map(selected=>({selected})))('retains coincident instances and attaches brims only to $selected', ({selected}) => {
     const p = importProject('coincident.3mf',archive(resource(1,box()),'<item objectid="1"/><item objectid="1"/>'));
     const original = structuredClone(p), result = generateBrims(p,settings,selected);
-    const out = importProject('out.3mf',exportProject(p,result).slice().buffer);
+    const bytes = exportProject(p,result), out = importProject('out.3mf',bytes.slice().buffer);
     expect(out.objects).toHaveLength(2);
-    expect(new Set(out.objects.map(o=>o.resourceId)).size).toBe(2);
+    expect(new Set(Array.from(new DOMParser().parseFromString(strFromU8(unzipSync(bytes)['3D/3dmodel.model']),'application/xml').getElementsByTagName('item')).map(o=>o.getAttribute('objectid'))).size).toBe(2);
     out.objects.forEach((object,i) => {
       expect(corners(object.parts[0].mesh)).toEqual(corners(p.objects[i].parts[0].mesh));
       const brim = object.parts.find(part=>part.name==='Rolling brim');

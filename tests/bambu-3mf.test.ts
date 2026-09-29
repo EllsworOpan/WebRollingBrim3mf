@@ -3,7 +3,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { importProject, exportProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
-import { children, child, xml } from '../src/core/three-mf-xml';
+import { children, child, xml } from '../src/vendor/three-mf/compat/three-mf-xml.js';
 import { boundsOf, totalArea } from '../src/core/geometry';
 import { box, stl } from './fixtures';
 import { nativeFixture } from './native-fixtures';
@@ -26,8 +26,8 @@ describe('Bambu Studio and OrcaSlicer project adapters', () => {
     expect(round.objects).toHaveLength(5);
     expect(round.objects.map(o => o.parts.length)).toEqual([3,2,2,2,1]);
     round.objects.forEach((o,i) => expect(o.parts.filter(p=>p.name!=='Rolling brim')).toEqual(p.objects[i].parts));
-    expect(files['3D/Objects/shared.model']).toEqual(p.source!.files['3D/Objects/shared.model']);
-    expect(files['3D/Objects/other.model']).toEqual(p.source!.files['3D/Objects/other.model']);
+    expect(files['3D/Objects/shared.model']).toEqual(unzipSync(new Uint8Array(nativeFixture()))['3D/Objects/shared.model']);
+    expect(files['3D/Objects/other.model']).toEqual(unzipSync(new Uint8Array(nativeFixture()))['3D/Objects/other.model']);
     expect(files['Metadata/opaque.bin']).toEqual(new Uint8Array([2,4,6]));
     expect(Object.keys(files).some(p => /gcode$|plate_2.png|slice_info/.test(p))).toBe(false);
     const config = strFromU8(files['Metadata/model_settings.config']);
@@ -56,11 +56,13 @@ describe('Bambu Studio and OrcaSlicer project adapters', () => {
     expect(round.objects[0].parts[1].mesh).toEqual(result.objects[0].mesh);
   });
 
-  it('rejects missing resources, cycles, unknown extensions and bad plate membership', () => {
+  it('rejects missing resources, cycles and unknown extensions while ignoring stale plate metadata', () => {
     expect(() => open(altered(f => { delete f['3D/Objects/shared.model']; }))).toThrow(/Missing model/);
     expect(() => open(altered(f => { f['3D/3dmodel.model'] = strToU8(strFromU8(f['3D/3dmodel.model']).replace('p:path="/3D/Objects/shared.model" objectid="1"','objectid="3"')); f['Metadata/model_settings.config'] = strToU8(strFromU8(f['Metadata/model_settings.config']).replace('<part id="1"','<part id="3"')); }))).toThrow(/circular/);
     expect(() => open(altered(f => { f['3D/3dmodel.model'] = strToU8(strFromU8(f['3D/3dmodel.model']).replace('requiredextensions="p"','requiredextensions="other"')); }))).toThrow(/extension/);
-    expect(() => open(altered(f => { f['Metadata/model_settings.config'] = strToU8(strFromU8(f['Metadata/model_settings.config']).replace('key="instance_id" value="0"','key="instance_id" value="90"')); }))).toThrow(/assignment/);
+    const p=open(altered(f => { f['Metadata/model_settings.config'] = strToU8(strFromU8(f['Metadata/model_settings.config']).replace('key="instance_id" value="0"','key="instance_id" value="90"')); }));
+    expect(p.objects).toHaveLength(5);
+    expect(open(exportProject(p,generateBrims(p,DEFAULT_BRIM),undefined,{clean:true})).objects).toHaveLength(5);
   });
 
   it('remaps layer metadata by first build occurrence rather than resource ID', () => {

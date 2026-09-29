@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { children, child, xml, type El } from '../src/core/three-mf-xml';
+import { children, child, xml, type El } from '../src/vendor/three-mf/compat/three-mf-xml.js';
 import { archive, box, meshXml } from './fixtures';
 import { modelSnapshot } from './painted-fixtures';
 import { worldPoint } from './scaled-fixtures';

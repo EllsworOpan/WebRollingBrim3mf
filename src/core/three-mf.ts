@@ -1,84 +1,27 @@
-import { strFromU8, unzipSync } from 'fflate';
 import { Matrix4 } from 'three';
 import { loadStl } from './mesh';
 import { importObj } from './obj';
-import { importPrusaProject, exportPrusaProject } from './prusa-3mf';
-import { importNativeProject, exportNativeProject } from './bambu-3mf';
-import { detectThreeMfDialect, type ThreeMfDialect } from './three-mf-dialect';
-import { importPrusa3Project, exportPrusa3Project } from './prusa3-3mf';
-import { xml, children, safePath, type Doc } from './three-mf-xml';
-import { cleanProject } from './clean-3mf';
-import { convertCleanProject } from './convert-3mf';
-import { translatePaint } from './paint-codec';
-import type { BrimResult, Project, SlicerFormat } from './types';
-
-type Archive = NonNullable<Project['source']> & { document: Doc };
-interface ThreeMfAdapter {
-  read(name: string, archive: Archive): Project;
-  write(project: Project, result: BrimResult, format: SlicerFormat, document?: Doc): Uint8Array;
-}
-const legacyAdapter: ThreeMfAdapter = {
-  read(name, archive) {
-    return importPrusaProject(name, archive.files, archive.modelPath, archive.document);
-  },
-  write(project, result, format, document) {
-    if (format === 'prusa3') return exportPrusa3Project(project,result);
-    return format === 'prusa' ? exportPrusaProject(project, result, document) : exportNativeProject(project, result, format);
-  },
-};
-// Dialect-specific metadata stays behind this boundary so the worker and brim
-// engine use the same whole-project contract for every slicer.
-const adapters: Record<ThreeMfDialect, ThreeMfAdapter> = {
-  generic: legacyAdapter,
-  prusa2: legacyAdapter,
-  prusa3: {
-    read: (name, archive) => importPrusa3Project(name,archive.files,archive.modelPath,archive.document),
-    write: (project,result,_format,document) => exportPrusa3Project(project,result,document),
-  },
-  'bambu-orca': {
-    read: (name, archive) => importNativeProject(name, archive.files, archive.modelPath, archive.document),
-    write: exportNativeProject,
-  },
-};
-function readArchive(source: NonNullable<Project['source']>) {
-  if (!source.files[source.modelPath]) throw new Error('The 3MF model resource is missing.');
-  const document = xml(strFromU8(source.files[source.modelPath]));
-  const dialect = detectThreeMfDialect(source.files, document.documentElement);
-  return { archive: { ...source, document }, adapter: adapters[dialect] };
-}
-export function importProject(name: string, bytes: ArrayBuffer): Project {
-  if (bytes.byteLength > 200_000_000) throw new Error('Choose a file smaller than 200 MB.');
-  if (/\.obj$/i.test(name)) return importObj(name, bytes);
+import { readDocument, geometryView, fromGeometryView, appendParts, identity, outputTarget } from '../vendor/three-mf/index.js';
+import type { Document, PrintOverrides, ExportResult } from '../vendor/three-mf/index.js';
+import type { Project, BrimResult, SlicerFormat } from './types';
+const documents = new WeakMap<Project,Document>();
+export function importProject(name:string, bytes:ArrayBuffer):Project {
+  if (/\.obj$/i.test(name)) return importObj(name,bytes);
   if (/\.stl$/i.test(name)) {
-    const mesh = loadStl(bytes);
-    return { name, objects: [{ id: 'object-0', name: name.replace(/\.stl$/i, ''), resourceId: '1', buildIndex: 0, transform: new Matrix4().toArray(), parts: [{ name, kind: 'ModelPart', mesh }] }], warnings: ['STL units are assumed to be millimetres. The model was placed on Z=0; disconnected shells remain one object.'] };
+    const mesh=loadStl(bytes);
+    return {name,objects:[{id:'object-0',name:name.replace(/\.stl$/i,''),transform:new Matrix4().toArray(),parts:[{name,kind:'ModelPart',mesh}]}],warnings:['STL units are assumed to be millimetres. The model was placed on Z=0; disconnected shells remain one object.']};
   }
-  if (!/\.3mf$/i.test(name)) throw new Error('Choose an STL, OBJ or 3MF file.');
-  let expanded = 0, entries = 0;
-  const files = unzipSync(new Uint8Array(bytes), { filter: file => {
-    expanded += file.originalSize; entries++;
-    if (expanded > 500_000_000 || entries > 10000) throw new Error('The expanded 3MF exceeds the browser processing limit.');
-    safePath(file.name); return true;
-  } });
-  const rels = files['_rels/.rels'] && xml(strFromU8(files['_rels/.rels']));
-  const relation = rels && children(rels.documentElement, 'Relationship').find(r => /\/3dmodel$/.test(r.getAttribute('Type') || ''));
-  if (!relation || relation.getAttribute('TargetMode') === 'External') throw new Error('The 3MF has no internal model relationship.');
-  const modelPath = safePath(relation.getAttribute('Target') || '');
-  const { archive, adapter } = readArchive({ files, modelPath });
-  return adapter.read(name, archive);
+  if(!/\.3mf$/i.test(name))throw new Error('Choose an STL, OBJ or 3MF file.');
+  const document=readDocument(bytes,name),project=geometryView(document);
+  documents.set(project,document);return project;
 }
-export function exportProject(project: Project, result: BrimResult, format: SlicerFormat = project.format && project.format !== 'generic' ? project.format : 'prusa', options: { clean?: boolean } = {}): Uint8Array {
-  if (options.clean) project = project.source && format !== (project.format === 'generic' ? 'prusa' : project.format)
-    ? convertCleanProject(project,format) : cleanProject(project);
-  // Saving opaque bytes alone cannot validate Orca's 16-slot painting decoder.
-  if (format === 'orca' && project.source) for (const [path,bytes] of Object.entries(project.source.files)) {
-    if (!path.endsWith('.model')) continue;
-    const doc = xml(strFromU8(bytes));
-    for (const node of Array.from(doc.getElementsByTagName('*'))) if (node.localName === 'triangle' && node.hasAttribute('paint_color'))
-      translatePaint(node.getAttribute('paint_color')!,'orca','orca');
-  }
-  const input = project.source ? readArchive(project.source) : undefined;
-  const adapter = input?.adapter || legacyAdapter;
-  if (project.format && project.format !== 'generic' && project.format !== format) throw new Error('Native projects must be exported to their original slicer.');
-  return adapter.write(project, result, format, input?.archive.document);
+export function exportProjectReport(project:Project,result:BrimResult,format:SlicerFormat=outputTarget(project.format) as SlicerFormat,options:{clean?:boolean}={}):ExportResult {
+  if(!result.objects.some(o=>o.mesh.triangles.length))throw new Error('Generate at least one brim before exporting.');
+  const original=documents.get(project),document=original||fromGeometryView(project);
+  const overrides:PrintOverrides={sourceName:'rolling-brim.generated.stl',perimeterCount:result.settings.perimeters,infillPercent:0,topLayers:0,bottomLayers:0,topThickness:0,bottomThickness:0,gapFill:false,verticalShells:false,firstLayerSingleWall:false,topSingleWall:false,ironing:false,wipeIntoInfill:false};
+  const additions=result.objects.filter(o=>o.mesh.triangles.length).map(o=>({objectId:o.id,space:'world' as const,part:{id:o.id+'/generated-brim',name:'Rolling brim',kind:'ModelPart' as const,mesh:o.mesh,transform:identity(),paint:Array.from({length:o.mesh.triangles.length/3},()=>({region:0})),overrides}}));
+  return appendParts(document,additions,{mode:options.clean||!original?'create':'update',target:format,objectOverrides:{elephantFootCompensation:0},applicationMetadata:{name:'rolling_brim',data:{version:1,settings:result.settings,sampleZ:result.settings.height/2,printOrder:'Determined by the slicer; brim-first is not guaranteed.'}}});
 }
+
+
+export function exportProject(...args:Parameters<typeof exportProjectReport>):Uint8Array { return exportProjectReport(...args).bytes; }

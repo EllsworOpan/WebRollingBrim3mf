@@ -1,4 +1,5 @@
-import { importProject, exportProject } from './three-mf';
+import { outputTarget } from '../vendor/three-mf/index.js';
+import { importProject, exportProjectReport } from './three-mf';
 import { generateBrims } from './brim';
 import { maximizeDiameter } from './maximize-diameter';
 import type { Project, WorkerRequest, WorkerResponse } from './types';
@@ -15,7 +16,7 @@ self.onmessage = ({ data }: MessageEvent<WorkerRequest>) => {
     } else if (data.type === 'load') {
       project = undefined;
       project = importProject(data.name, data.bytes);
-      const { source: _source, ...publicProject } = project;
+      const publicProject = project;
       send({ type: 'loaded', id: data.id, project: publicProject });
     } else {
       if (!project) throw new Error('Load a model first.');
@@ -39,8 +40,9 @@ self.onmessage = ({ data }: MessageEvent<WorkerRequest>) => {
       const result = generateBrims(project, data.settings, data.enabled);
       if (data.type === 'generate') send({ type: 'generated', id: data.id, result });
       else {
-        const slicer = data.format || (project.format && project.format !== 'generic' ? project.format : 'prusa');
-        send({ type: 'exported', id: data.id, bytes: exportProject(project, result, slicer, {clean:data.clean}), slicer, filename: `${project.name.replace(/\.(stl|obj|3mf)$/i, '')}-rolling-brim${data.clean ? '-clean' : ''}.3mf` });
+        const slicer = data.format || outputTarget(project.format) as Exclude<import('../vendor/three-mf/index.js').Target,'universal'>;
+        const exported = exportProjectReport(project,result,slicer,{clean:data.clean});
+        send({ type: 'exported', id: data.id, bytes: exported.bytes, warnings: exported.warnings, slicer, filename: `${project.name.replace(/\.(stl|obj|3mf)$/i, '')}-rolling-brim${data.clean ? '-clean' : ''}.3mf` });
       }
     }
   } catch (error) { send({ type: 'error', id: data.id, message: error instanceof Error ? error.message : String(error) }); }

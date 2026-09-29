@@ -1,5 +1,5 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { xml, children, child, serialize } from '../src/core/three-mf-xml';
+import { xml, children, child, serialize } from '../src/vendor/three-mf/compat/three-mf-xml.js';
 
 export const P3_MODEL = '3D/3dmodel.model', P3_PROJECT = 'Metadata/PrusaSlicer3_project.json', P3_PAINT = 'Metadata/Slic3r_facets_annotation.json';
 export function prusa3Fixture(mini: Uint8Array, core: Uint8Array): Uint8Array {

@@ -5,7 +5,7 @@ import { importProject, exportProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
 import { boundsOf, totalArea } from '../src/core/geometry';
-import { children, child, xml, type El } from '../src/core/three-mf-xml';
+import { children, child, xml, type El } from '../src/vendor/three-mf/compat/three-mf-xml.js';
 import { P3_MODEL, P3_PROJECT, P3_PAINT } from './prusa3-fixtures';
 import { nativeFixture } from './native-fixtures';
 

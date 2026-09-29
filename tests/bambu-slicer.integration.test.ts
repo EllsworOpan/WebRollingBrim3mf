@@ -31,7 +31,7 @@ for (const format of ['bambu','orca'] as const) {
       const slicingProfile = JSON.parse(strFromU8(saved['Metadata/project_settings.config']));
       Object.assign(slicingProfile,{printer_settings_id:'Validation printer',print_settings_id:'Validation process',filament_settings_id:['Validation PLA'],printer_model:'Generic',printer_variant:'0.4',inherits_group:['','',''],different_settings_to_system:['','',''],printable_area:['0x0','200x0','200x200','0x200'],printable_height:'200',layer_height:'0.2',initial_layer_print_height:'0.2',brim_type:'no_brim',brim_width:'0',enable_prime_tower:'0',skirt_loops:'0',skirt_height:'0',nozzle_temperature:['200'],nozzle_temperature_initial_layer:['200'],machine_start_gcode:'G28\nG92 E0',machine_end_gcode:'M104 S0',layer_change_gcode:'G92 E0',gcode_flavor:'marlin',use_relative_e_distances:'1'});
       slicing['Metadata/project_settings.config'] = strToU8(JSON.stringify(slicingProfile));
-      slicing['3D/3dmodel.model'] = strToU8(strFromU8(slicing['3D/3dmodel.model']).replace('RollingBrim-0.1.0',format === 'orca' ? 'OrcaSlicer-2.4.2' : 'BambuStudio-02.08.02.61'));
+      slicing['3D/3dmodel.model'] = strToU8(strFromU8(slicing['3D/3dmodel.model']).replace(/(?:RollingBrim|ThreeMFKit)-\d+\.\d+\.\d+/,format === 'orca' ? 'OrcaSlicer-2.4.2' : 'BambuStudio-02.08.02.61'));
       writeFileSync(path('slice'),zipSync(slicing));
       const dir = resolve(`.local/${format}-integration-sliced`); mkdirSync(dir,{recursive:true});
       execFileSync(executable,['--arrange','0','--slice','1','--outputdir',dir,path('slice')],{cwd:resolve('.local'),windowsHide:true,timeout:60000,stdio:'pipe'});

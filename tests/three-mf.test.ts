@@ -1,3 +1,4 @@
+import { DOMParser } from '@xmldom/xmldom';
 import { describe, expect, it } from 'vitest';
 import { strFromU8, strToU8, unzipSync } from 'fflate';
 import { importProject, exportProject } from '../src/core/three-mf';
@@ -38,7 +39,7 @@ describe('3MF import/export',()=>{
   it('detaches repeated instances and creates a brim in each instance’s coordinates',()=>{
     const input=archive(`<object id="7">${meshXml(box())}</object>`,'<item objectid="7"/><item objectid="7" transform="1 0 0 0 1 0 0 0 1 50 0 0"/>');
     const p=importProject('copies.3mf',input), result=generateBrims(p,DEFAULT_BRIM), out=exportProject(p,result);
-    const round=importProject('out.3mf',ab(out)); expect(round.objects).toHaveLength(2); expect(new Set(round.objects.map(o=>o.resourceId)).size).toBe(2);
+    const round=importProject('out.3mf',ab(out)); expect(round.objects).toHaveLength(2); expect(new Set(Array.from(new DOMParser().parseFromString(strFromU8(unzipSync(out)['3D/3dmodel.model']),'application/xml').getElementsByTagName('item')).map(o=>o.getAttribute('objectid'))).size).toBe(2);
     expect(round.objects.map(o=>boundsOf(sliceMesh(o.parts[0].mesh,0.1)).minX)).toEqual([20,70]);
   });
   it('preserves generic component grouping and unit transforms',()=>{
@@ -55,6 +56,6 @@ describe('3MF import/export',()=>{
   it('rejects invalid indices, cyclic references, and unsupported project formats',()=>{
     expect(()=>importProject('bad.3mf',archive('<object id="1"><components><component objectid="1"/></components></object>','<item objectid="1"/>'))).toThrow(/circular/);
     expect(()=>importProject('bad.3mf',archive(`<object id="1">${meshXml(box()).replace('v1="0"','v1="99999"')}</object>`,'<item objectid="1"/>'))).toThrow(/indices/);
-    expect(()=>importProject('orca.3mf',archive(`<object id="1">${meshXml(box())}</object>`,'<item objectid="1"/>','<config/>',{'Metadata/project_settings.config':strToU8('{}')}))).toThrow(/Bambu\/Orca/);
+    expect(importProject('mixed-profile.3mf',archive(`<object id="1">${meshXml(box())}</object>`,'<item objectid="1"/>','<config/>',{'Metadata/project_settings.config':strToU8('{}')})).objects).toHaveLength(1);
   });
 });

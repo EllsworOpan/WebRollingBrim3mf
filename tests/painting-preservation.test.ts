@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { strToU8, unzipSync, zipSync } from 'fflate';
+import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { importProject, exportProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
@@ -134,10 +134,13 @@ describe('PrusaSlicer painting and settings preservation', () => {
     });
   });
 
-  it.each(PAINT)('rejects component flattening that would discard %s painting', key => {
+  it.each(PAINT)('imports component geometry and cleans %s annotations intentionally', key => {
     const resource = meshXml(box()).replace('<triangle ',`<triangle ${key}="4" `);
     const source = archive(`<object id="1">${resource}</object><object id="2"><components><component objectid="1"/></components></object>`,'<item objectid="2"/>');
-    expect(() => importProject('assembly.3mf',source)).toThrow(/painted or annotated/);
+    const p=importProject('assembly.3mf',source), bytes=exportProject(p,generateBrims(p,DEFAULT_BRIM),undefined,{clean:true});
+    const text=Object.values(unzipSync(bytes)).map(bytes=>strFromU8(bytes)).join('');
+    if(key==='slic3rpe:mmu_segmentation')expect(text).toContain(key);else expect(text).not.toContain(key);
+    expect(importProject('round.3mf',bytes.slice().buffer).objects[0].parts.filter(p=>p.name!=='Rolling brim')[0].mesh.triangles.length).toBe(box().triangles.length);
   });
 
   it.each(['Metadata/Slic3r_PE_layer_heights_profile.txt','Metadata/Prusa_Slicer_layer_config_ranges.xml'])('does not detach instances while invalidating object references in %s', path => {

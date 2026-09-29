@@ -1,3 +1,4 @@
+import { DEFAULT_TARGET, outputTarget, getTarget, noticesForMode } from './vendor/three-mf/index.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ArrowUpRight, Box, Check, ChevronDown, Circle, CircleHelp, Download, Focus, Layers3, LoaderCircle, LockKeyhole, Maximize2, RotateCcw, ScanLine, Settings2, SlidersHorizontal, Upload, X } from 'lucide-react';
 import FirstLayerView from './components/FirstLayerView';
@@ -18,9 +19,10 @@ function Toggle({ label, description, checked, onChange, count }: { label: strin
   return <label className="toggle-row"><span><span className="toggle-title">{label}{count !== undefined && <span className="count-badge">{count}</span>}</span><span className="toggle-description">{description}</span></span><input type="checkbox" checked={checked} onChange={onChange} role="switch"/><span className="toggle-track" aria-hidden="true"/></label>;
 }
 export default function App() {
-  const [project, setProject] = useState<Omit<Project,'source'> | null>(null), [result, setResult] = useState<BrimResult | null>(null);
+  const [project, setProject] = useState<Project | null>(null), [result, setResult] = useState<BrimResult | null>(null);
   const [settings, setSettings] = useState<BrimSettings>(DEFAULT_BRIM), [enabled, setEnabled] = useState<string[]>([]), [selected, setSelected] = useState<string | null>(null);
-  const [outputFormat, setOutputFormat] = useState<SlicerFormat>('prusa');
+  const [outputFormat, setOutputFormat] = useState<SlicerFormat>(DEFAULT_TARGET);
+  const [exportNotices,setExportNotices] = useState<string[]>([]);
   const [cleanExport, setCleanExport] = useState(false);
   const [prepared, setPrepared] = useState<{ url: string; name: string } | null>(null);
   const [status, setStatus] = useState(''), [error, setError] = useState(''), [toast, setToast] = useState(''), [dragging, setDragging] = useState(false);
@@ -35,9 +37,8 @@ export default function App() {
   useEffect(() => { if (!help) return; const listener = (e: KeyboardEvent) => { if (e.key === 'Escape') setHelp(false); }; window.addEventListener('keydown',listener); return () => window.removeEventListener('keydown',listener); }, [help]);
   const load = useCallback(async (file: File) => {
     if (!/\.(stl|obj|3mf)$/i.test(file.name)) { setError('Choose an STL, OBJ or 3MF file.'); return; }
-    if (file.size > 200_000_000) { setError('Choose a file smaller than 200 MB.'); return; }
     worker.current?.terminate(); const id = ++request.current; setProject(null); setResult(null); setPrepared(null); setError(''); setStatus('Reading model geometry…'); setSelected(null); filename.current = file.name.replace(/\.(stl|obj|3mf)$/i,'');
-    setMaximizing(false); setDiameterNotice(''); setCleanExport(false); maximizeRequest.current = null; appliedSettings.current = null;
+    setMaximizing(false); setDiameterNotice(''); setCleanExport(false); setExportNotices([]); maximizeRequest.current = null; appliedSettings.current = null;
     const instance = new Worker(new URL('./core/worker.ts', import.meta.url), { type: 'module' }); worker.current = instance;
     instance.onmessage = ({ data }: MessageEvent<WorkerResponse>) => {
       if (data.id !== request.current) return;
@@ -46,7 +47,7 @@ export default function App() {
         if (maximizeRequest.current === data.id) { setDiameterNotice(data.message); maximizeRequest.current = null; }
         else { setError(data.message); setResult(null); setPrepared(null); }
       }
-      if (data.type === 'loaded') { if (data.project.format && data.project.format !== 'generic') setOutputFormat(data.project.format); else if (/\.3mf$/i.test(data.project.name)) setOutputFormat('prusa'); setProject(data.project); setEnabled(data.project.objects.map(o => o.id)); setFitKey(n => n + 1); setStatus('Building rolling brims…'); }
+      if (data.type === 'loaded') { if (data.project.format && data.project.format !== 'generic') setOutputFormat(data.project.format); else if (/\.3mf$/i.test(data.project.name)) setOutputFormat(DEFAULT_TARGET); setProject(data.project); setEnabled(data.project.objects.map(o => o.id)); setFitKey(n => n + 1); setStatus('Building rolling brims…'); }
       if (data.type === 'generated') { setResult(data.result); setStatus(''); }
       if (data.type === 'maximizing') setStatus(data.progress.stage === 'verifying' ? `Verifying ${data.progress.diameter.toFixed(2)} mm…` : `Optimizing diameter… testing ${data.progress.diameter.toFixed(2)} mm`);
       if (data.type === 'maximized') {
@@ -60,7 +61,7 @@ export default function App() {
         else setDiameterNotice('Enable an object with a first-layer footprint to optimize its diameter.');
       }
       if (data.type === 'cancelled') { setMaximizing(false); setStatus(''); maximizeRequest.current = null; setDiameterNotice('Search cancelled. Diameter unchanged.'); }
-      if (data.type === 'exported') { const blob = new Blob([data.bytes.slice().buffer as ArrayBuffer], { type: 'model/3mf' }); const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = data.filename || `${filename.current}-rolling-brim.3mf`; setPrepared({ url, name: link.download }); document.body.appendChild(link); link.click(); link.remove(); setStatus(''); setToast(`Download started. Open the 3MF as a project in ${SLICER_NAMES[data.slicer || 'prusa']}.`); }
+      if (data.type === 'exported') { setExportNotices(data.warnings || []); const blob = new Blob([data.bytes.slice().buffer as ArrayBuffer], { type: 'model/3mf' }); const url = URL.createObjectURL(blob), link = document.createElement('a'); link.href = url; link.download = data.filename || `${filename.current}-rolling-brim.3mf`; setPrepared({ url, name: link.download }); document.body.appendChild(link); link.click(); link.remove(); setStatus(''); setToast(`Download started. Open the 3MF as a project in ${SLICER_NAMES[data.slicer || DEFAULT_TARGET]}.`); }
     };
     instance.onerror = e => { if (worker.current === instance) { setError(e.message || 'Processing stopped. Try opening the model again.'); setStatus(''); setMaximizing(false); setResult(null); setPrepared(null); } };
     try { const bytes = await file.arrayBuffer(); if (id === request.current) instance.postMessage({ type: 'load', id, name: file.name, bytes } satisfies WorkerRequest, [bytes]); } catch (e) { if (id === request.current) { setError(String(e)); setStatus(''); } }
@@ -87,7 +88,7 @@ export default function App() {
   const cancelMaximize = () => { send({ type: 'cancel', id: ++request.current }); };
   const download = () => { if (!canExport) return; setStatus('Packaging 3MF project…'); send({ type: 'export', id: ++request.current, settings, enabled, format: outputFormat, clean: cleanExport }); };
   const toggleCleanExport = () => {
-    if (cleanExport) setOutputFormat(project?.format && project.format !== 'generic' ? project.format : 'prusa');
+    if (cleanExport) setOutputFormat(outputTarget(project?.format) as SlicerFormat);
     setCleanExport(value => !value); setPrepared(null); setError('');
     // An export error clears the old preview. Rebuild it so safe mode can be
     // used immediately as a fallback without reopening the file.
@@ -95,8 +96,8 @@ export default function App() {
   };
   const threeMfInput = /\.3mf$/i.test(project?.name || '');
   const slicerName = SLICER_NAMES[outputFormat];
-  const sourceNotices = (project?.warnings || []).map(w => cleanExport && w.startsWith('Material slots and virtual extruders are preserved.') ? 'Color-region numbers are retained. Virtual-material recipes are discarded by clean export.' : w);
-  const notices = [...sourceNotices, ...(result?.warnings || []), ...(result?.objects.flatMap(o => o.warnings.map(w => `${project?.objects.find(p => p.id === o.id)?.name}: ${w}`)) || [])];
+  const sourceNotices = noticesForMode(project?.warnings || [],cleanExport?'create':'update');
+  const notices = [...sourceNotices, ...exportNotices, ...(result?.warnings || []), ...(result?.objects.flatMap(o => o.warnings.map(w => `${project?.objects.find(p => p.id === o.id)?.name}: ${w}`)) || [])];
   const area = result?.objects.reduce((sum,o) => sum + o.areaMm2,0) || 0;
   const heights = sampleHeights(result?.settings.height ?? settings.height);
   const uncoveredCount = result?.objects.reduce((sum,o) => sum + o.uncovered.length,0) ?? 0;
@@ -107,8 +108,8 @@ export default function App() {
     <div className="workbench"><aside className="sidebar"><div className="sidebar-top"><span className="eyebrow">BRIM WORKSPACE</span><SlidersHorizontal size={16}/></div>
       <button className={`source-card ${project ? 'has-file' : ''}`} onClick={() => input.current?.click()}><span className="source-icon">{project ? <Box size={20}/> : <Upload size={20}/>}</span><span className="source-text"><strong title={project?.name}>{project?.name || 'Open a model'}</strong><span>{project ? `${project.objects.length} object${project.objects.length === 1 ? '' : 's'} · STL / OBJ / 3MF` : 'STL, OBJ or 3MF · four slicer formats'}</span></span><ArrowUpRight size={16}/></button>
       {project && <div className="project-controls">
-        {threeMfInput && <fieldset disabled={!!status} className="export-mode"><Toggle label="Safe mode: clean 3MF" checked={cleanExport} onChange={toggleCleanExport} description="Start with meshes and color regions, then apply RollingBrim settings."/>{cleanExport && <><p>Source profiles and overrides are discarded. Our brim settings and zero elephant-foot compensation stay. Choose your printer and assign materials to the numbered regions in the slicer; match the first-layer height.</p>{project.format === 'prusa3' && <p>Blend and gradient assignments become flat color regions. Their mixing recipes and printer configuration are discarded.</p>}</>}</fieldset>}
-        <label>Output slicer<select aria-label="Output slicer" value={outputFormat} disabled={(threeMfInput && !cleanExport) || !!status} onChange={e => { setOutputFormat(e.target.value as SlicerFormat); setPrepared(null); setError(''); if (!result) setSettings(value => ({...value})); }}>{Object.entries(SLICER_NAMES).map(([id,name]) => <option key={id} value={id}>{name}</option>)}</select><span>{threeMfInput && !cleanExport ? 'Turn on safe mode to change the output slicer.' : outputFormat === 'prusa3' ? 'Experimental: tested with PrusaSlicer 3.0.0-alpha12.' : 'Open the download as a project to keep brim part settings.'}</span></label>
+        {threeMfInput && <fieldset disabled={!!status} className="export-mode"><Toggle label="Safe mode: clean 3MF" checked={cleanExport} onChange={toggleCleanExport} description="Start with meshes and color regions, then apply RollingBrim settings."/>{cleanExport && <><p>Source profiles and overrides are discarded. Our brim settings and zero elephant-foot compensation stay. Choose your printer and assign materials to the numbered regions in the slicer; match the first-layer height.</p>{getTarget(outputTarget(project.format)).cleanNote && <p>{getTarget(outputTarget(project.format)).cleanNote}</p>}</>}</fieldset>}
+        <label>Output slicer<select aria-label="Output slicer" value={outputFormat} disabled={(threeMfInput && !cleanExport) || !!status} onChange={e => { setOutputFormat(e.target.value as SlicerFormat); setPrepared(null); setError(''); if (!result) setSettings(value => ({...value})); }}>{Object.entries(SLICER_NAMES).map(([id,name]) => <option key={id} value={id}>{name}</option>)}</select><span>{threeMfInput && !cleanExport ? 'Turn on safe mode to change the output slicer.' : getTarget(outputFormat).note || 'Open the download as a project to keep brim part settings.'}</span></label>
       </div>}
       <section className="settings-section"><div className="section-label"><span>01</span><h2>Shape the brim</h2></div>
         <NumberControl label="Rolling diameter" value={settings.diameter} min={MIN_DIAMETER} max={MAX_DIAMETER} sliderMax={50} step={DIAMETER_STEP} onChange={v => update('diameter',v)} description="Larger circles stay out of tighter gaps."/>

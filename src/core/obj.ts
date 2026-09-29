@@ -72,6 +72,6 @@ export function importObj(name: string, bytes: ArrayBuffer): Project {
   for (const {mesh} of meshes) for (let i=2;i<mesh.vertices.length;i+=3) mesh.vertices[i]-=minZ;
   return {
     name, warnings: ['OBJ units are assumed to be millimetres and Z is the vertical axis. The whole scene was placed on Z=0, preserving relative placement. Named objects stay separate; face groups remain within their object. Materials, textures, lines and points are not imported.'],
-    objects: meshes.map(({name:objectName,mesh},i) => ({id:`object-${i}`,name:objectName,resourceId:String(i+1),buildIndex:i,transform:new Matrix4().toArray(),parts:[{name:objectName,kind:'ModelPart',mesh}]})),
+    objects: meshes.map(({name:objectName,mesh},i) => ({id:`object-${i}`,name:objectName,transform:new Matrix4().toArray(),parts:[{name:objectName,kind:'ModelPart',mesh}]})),
   };
 }

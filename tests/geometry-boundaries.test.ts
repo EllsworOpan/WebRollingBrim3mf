@@ -56,7 +56,7 @@ describe('geometry boundaries', () => {
 
   it('keeps modifiers and support volumes out of the footprint, and explains floating objects', () => {
     const p = project([box(),box(70,20)]);
-    for (const kind of ['ParameterModifier','SupportEnforcer','SupportBlocker']) p.objects[0].parts.push({kind,name:kind,mesh:box(-100,-100,200,200)});
+    for (const kind of ['ParameterModifier','SupportEnforcer','SupportBlocker'] as const) p.objects[0].parts.push({kind,name:kind,mesh:box(-100,-100,200,200)});
     for (let i=2;i<p.objects[1].parts[0].mesh.vertices.length;i+=3) p.objects[1].parts[0].mesh.vertices[i]+=1;
     const result = generateBrims(p,DEFAULT_BRIM);
     expect(boundsOf(result.objects[0].footprint)).toEqual({minX:20,minY:20,maxX:40,maxY:40});

@@ -1,7 +1,7 @@
 import { it } from 'vitest';
 import { zipSync, unzipSync, strFromU8, strToU8 } from 'fflate';
 import { importProject, exportProject } from '../src/core/three-mf';
-import { convertCleanProject } from '../src/core/convert-3mf';
+import { readDocument, writeDocument } from '../src/vendor/three-mf/index.js';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
 import { box, stl } from './fixtures';
@@ -22,9 +22,9 @@ for (const [slot, paint] of [
           strFromU8(files[path]).replace(/<triangle\s/g, `<triangle paint_color="${paint}" `),
         );
       const bytes = zipSync(files),
-        source = importProject('bambu.3mf', bytes.slice().buffer);
-      const converted = convertCleanProject(source, 'prusa');
-      assertPrusaUsesPaint(zipSync(converted.source!.files), slot);
+        source = readDocument(bytes);
+      const converted = writeDocument(source,{mode:'create',target:'prusa'}).bytes;
+      assertPrusaUsesPaint(converted, slot);
     },
     60000,
   );

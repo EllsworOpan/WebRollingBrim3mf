@@ -12,13 +12,13 @@ export function stl(mesh: Mesh, binary = false): ArrayBuffer {
   return buffer;
 }
 export function project(meshes: Mesh[]): Project {
-  return { name: 'test.stl', warnings: [], objects: meshes.map((mesh,i) => ({ id:`object-${i}`, name:`Model ${i+1}`, resourceId:String(i+1), buildIndex:i, transform:new Matrix4().toArray(), parts:[{ name:`Body ${i+1}`, kind:'ModelPart', mesh }] })) };
+  return { name: 'test.stl', warnings: [], objects: meshes.map((mesh,i) => ({ id:`object-${i}`, name:`Model ${i+1}`, transform:new Matrix4().toArray(), parts:[{ name:`Body ${i+1}`, kind:'ModelPart', mesh }] })) };
 }
 export function meshXml(mesh: Mesh): string {
   const v = mesh.vertices, t = mesh.triangles;
   return `<mesh><vertices>${Array.from({ length:v.length/3 },(_,i) => `<vertex x="${v[i*3]}" y="${v[i*3+1]}" z="${v[i*3+2]}"/>`).join('')}</vertices><triangles>${Array.from({ length:t.length/3 },(_,i) => `<triangle v1="${t[i*3]}" v2="${t[i*3+1]}" v3="${t[i*3+2]}"/>`).join('')}</triangles></mesh>`;
 }
 export function archive(resources: string, build: string, config = '<config/>', extra: Record<string,Uint8Array> = {}, unit = 'millimeter'): ArrayBuffer {
-  const bytes = zipSync({ '[Content_Types].xml':strToU8('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>'), '_rels/.rels':strToU8('<Relationships><Relationship Target="/3D/3dmodel.model" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>'), '3D/3dmodel.model':strToU8(`<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" unit="${unit}"><resources>${resources}</resources><build>${build}</build></model>`), 'Metadata/Slic3r_PE_model.config':strToU8(config), ...extra });
+  const bytes = zipSync({ '[Content_Types].xml':strToU8('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>'), '_rels/.rels':strToU8('<Relationships><Relationship Target="/3D/3dmodel.model" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>'), '3D/3dmodel.model':strToU8(`<model xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06" unit="${unit}"><resources>${resources}</resources><build>${build}</build></model>`), 'Metadata/Slic3r_PE_model.config':strToU8(config), ...extra });
   return bytes.slice().buffer;
 }

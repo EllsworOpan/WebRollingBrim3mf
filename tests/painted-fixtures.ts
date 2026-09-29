@@ -53,7 +53,7 @@ export function paintedSeed(profile: string): ArrayBuffer {
   const extra = {'Metadata/Slic3r_PE.config':strToU8(Object.entries(settings).map(([key,value]) => `; ${key} = ${value}`).join('\n')+'\n')};
   const files = unzipSync(new Uint8Array(archive(`<object id="1" type="model">${body}</object>`,'<item objectid="1"/>',config,extra)));
   const versions = ['FdmSupports','Seam','FuzzySkin','Mm'].map(name => `<metadata name="slic3rpe:${name}PaintingVersion">1</metadata>`).join('');
-  files[MODEL] = strToU8(strFromU8(files[MODEL]).replace('<model ', '<model xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06" ').replace('<resources>',`<metadata name="slic3rpe:Version3mf">1</metadata>${versions}<resources>`));
+  files[MODEL] = strToU8(strFromU8(files[MODEL]).replace('<resources>',`<metadata name="slic3rpe:Version3mf">1</metadata>${versions}<resources>`));
   return zipSync(files).slice().buffer;
 }
 

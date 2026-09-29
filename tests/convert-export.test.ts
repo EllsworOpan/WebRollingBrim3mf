@@ -6,7 +6,8 @@ import { exportProject, importProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM, type Mesh, type SlicerFormat } from '../src/core/types';
 import { nativeFixture } from './native-fixtures';
-import { convertCleanProject } from '../src/core/convert-3mf';
+import { readDocument, writeDocument } from '../src/vendor/three-mf/index.js';
+const convert = (source: ReturnType<typeof readDocument>, target: SlicerFormat) => writeDocument(source,{mode:'create',target}).bytes;
 
 const open = (bytes:Uint8Array) => importProject('source.3mf',bytes.slice().buffer);
 const fixture = (name:string) => new Uint8Array(readFileSync(`tests/fixtures/${name}.3mf`));
@@ -68,8 +69,7 @@ describe('safe mode format changes', () => {
     const files = unzipSync(fixture('painted-plates-prusa3-alpha12'));
     const path = 'Metadata/Slic3r_facets_annotation.json', paint = JSON.parse(strFromU8(files[path]));
     paint[0].mmSegmentationFacetsVersion = 3; files[path] = strToU8(JSON.stringify(paint));
-    const p = open(zipSync(files));
-    expect(() => exportProject(p,generateBrims(p,DEFAULT_BRIM),'orca',{clean:true})).toThrow(/unknown color-paint version/);
+    expect(() => open(zipSync(files))).toThrow(/paint format/);
   });
 
   it('does not require matching per-bed palette colors for clean conversion', () => {
@@ -88,19 +88,19 @@ describe('safe mode format changes', () => {
     const files = unzipSync(fixture('painted-plates-bambu'));
     for (const path of Object.keys(files).filter(p => p.endsWith('.model')))
       files[path] = strToU8(strFromU8(files[path]).replace(/paint_color="[^"]+"/g,'paint_color="EFC"'));
-    const source = open(zipSync(files));
-    const prusa = convertCleanProject(source,'prusa');
-    const model = strFromU8(prusa.source!.files[prusa.source!.modelPath]);
+    const source = readDocument(zipSync(files));
+    const prusa = convert(source,'prusa');
+    const model = strFromU8(unzipSync(prusa)['3D/3dmodel.model']);
     expect(model).toContain('slic3rpe:mmu_segmentation="0FEC"');
     expect(model).toContain('slic3rpe:MmPaintingVersion">2<');
-    const native = convertCleanProject(source,'prusa3');
-    const annotations = JSON.parse(strFromU8(native.source!.files['Metadata/Slic3r_facets_annotation.json']));
+    const native = convert(source,'prusa3');
+    const annotations = JSON.parse(strFromU8(unzipSync(native)['Metadata/Slic3r_facets_annotation.json']));
     expect(annotations[0].mmSegmentationFacetsVersion).toBe(2);
     expect(annotations[0].mmSegmentationFacets[0].dividing).toBe('0FEC');
-    const back = convertCleanProject(prusa,'bambu');
-    expect(strFromU8(back.source!.files[back.source!.modelPath])).toContain('paint_color="EFC"');
-    expect(() => convertCleanProject(source,'orca')).toThrow(/1–16/);
-    expect(() => convertCleanProject(native,'orca')).toThrow(/1–16/);
+    const back = convert(readDocument(prusa),'bambu');
+    expect(strFromU8(unzipSync(back)['3D/3dmodel.model'])).toContain('paint_color="EFC"');
+    expect(() => convert(source,'orca')).toThrow(/1–16/);
+    expect(() => convert(readDocument(native),'orca')).toThrow(/1–16/);
   });
 
   it('refuses extended paint on native Orca exports as well as cross-conversions', () => {

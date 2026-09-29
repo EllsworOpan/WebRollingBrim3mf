@@ -41,6 +41,8 @@ for (const [path, entry] of Object.entries(lock.packages).sort(([a], [b]) => a.l
     (pkg.name === '@chestnutlabs/gcode-bgcode' ? '\n\nMeatPack decoder attribution:\n' + read('licenses/meatpack-MIT.txt').trimEnd() + '\n\nHeatshrink decoder attribution:\n' + read('licenses/heatshrink-ISC.txt').trimEnd() : ''));
 }
 
+sections.push(read('src/vendor/three-mf/THIRD_PARTY_NOTICES.txt').trimEnd());
+
 const outputs = {
   'public/LICENSE.txt': read('LICENSE'),
   'public/THIRD_PARTY_NOTICES.txt': sections.join(`\n\n${'='.repeat(72)}\n\n`) + '\n',

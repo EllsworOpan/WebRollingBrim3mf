@@ -4,7 +4,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { importProject, exportProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
-import { xml, children, child, serialize } from '../src/core/three-mf-xml';
+import { xml, children, child, serialize } from '../src/vendor/three-mf/compat/three-mf-xml.js';
 import { boundsOf } from '../src/core/geometry';
 import { sliceMesh } from '../src/core/mesh';
 import { P3_MODEL, P3_PROJECT, P3_PAINT } from './prusa3-fixtures';
@@ -98,17 +98,24 @@ describe('PrusaSlicer 3 alpha12 native projects', () => {
     ['additional model resources', (_:unknown,f:Record<string,Uint8Array>) => {f['3D/extra.model']=f[P3_MODEL];}],
     ['unknown mesh element', (_:unknown,f:Record<string,Uint8Array>) => {f[P3_MODEL]=strToU8(strFromU8(f[P3_MODEL]).replace('</triangles>','<future/></triangles>'));}],
     ['forward resource references', (_:unknown,f:Record<string,Uint8Array>) => {const doc=xml(strFromU8(f[P3_MODEL])),resources=child(doc.documentElement,'resources'),first=child(resources,'object');resources.removeChild(first);resources.appendChild(first);f[P3_MODEL]=serialize(doc);}],
-  ] as const)('rejects %s without falling back to generic geometry', (_,change) => {
-    expect(() => open(altered(change))).toThrow(/Unsupported PrusaSlicer 3\.0 project/);
+  ] as const)('handles %s according to the minimal geometry/paint contract', (name,change) => {
+    const bytes=altered(change);
+    if(name==='missing painted volume'){expect(()=>open(bytes)).toThrow(/painted volume/);return;}
+    const p=open(bytes),before=p.objects.map(o=>o.parts.map(part=>({kind:part.kind,triangles:part.mesh.triangles.length})));
+    const output=exportProject(p,generateBrims(p,DEFAULT_BRIM),undefined,{clean:true});
+    expect(metadata(output).config_containers).toEqual([]);
+    const round=open(output);
+    expect(round.objects.map(o=>o.parts.filter(part=>part.name!=='Rolling brim').map(part=>({kind:part.kind,triangles:part.mesh.triangles.length})))).toEqual(before);
   });
   it('does not interpret empty, overlapping or nonrectangular bed metadata', () => {
-    const p = open(altered(d => {
+    const input = altered(d => {
       const c=d.config_containers[0]; c.beds.push({...c.beds[0]});
       c.configuration.printer_settings.bed_shape = [[0,0],[5,0],[0,5]];
-    }));
+    });
+    const p = open(input);
     expect(p.objects).toHaveLength(4);
     const output = exportProject(p,generateBrims(p,DEFAULT_BRIM));
-    expect(metadata(output).config_containers).toEqual(JSON.parse(strFromU8(p.source!.files[P3_PROJECT])).config_containers);
+    expect(metadata(output).config_containers).toEqual(metadata(input).config_containers);
   });
 
   it('keeps the source format locked and supports mesh-only Prusa 3 exports', () => {

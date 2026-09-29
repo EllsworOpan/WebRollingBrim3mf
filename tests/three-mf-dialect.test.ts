@@ -3,7 +3,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { importProject, exportProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
-import { archive, box, meshXml, project } from './fixtures';
+import { archive, box, meshXml } from './fixtures';
 
 // Original geometry plus the markers published in Prusa's alpha12 serializer.
 // These deliberately incomplete files exercise detection before any legacy fallback.
@@ -39,12 +39,12 @@ describe('3MF dialect routing', () => {
     expect(importProject('roundtrip.3mf', exportProject(p, generateBrims(p, DEFAULT_BRIM)).slice().buffer).objects[0].parts).toHaveLength(2);
   });
 
-  it('cannot export from a source checkpoint containing unsupported metadata', () => {
-    const p = project([box()]), result = generateBrims(p, DEFAULT_BRIM);
-    p.source = {files:unzipSync(new Uint8Array(fixture({'Metadata/PrusaSlicer3_project.json':'{}'}))), modelPath:'3D/3dmodel.model'};
-    const before = structuredClone(p.source);
-    for (const format of ['prusa','bambu','orca'] as const) expect(() => exportProject(p, result, format)).toThrow(/PrusaSlicer 3\.0/);
-    expect(p.source).toEqual(before);
+  it('requires the original document for a source-backed geometry snapshot', () => {
+    const p = structuredClone(importProject('source.3mf',fixture({},'PrusaSlicer-2.9.6',true)));
+    const result = generateBrims(p,DEFAULT_BRIM), before = structuredClone(p);
+    for (const format of ['prusa','bambu','orca'] as const)
+      expect(() => exportProject(p,result,format,{clean:true})).toThrow(/original document/);
+    expect(p).toEqual(before);
   });
 
 });

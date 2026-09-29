@@ -1,6 +1,6 @@
 import { Matrix4, Vector3 } from 'three';
 import { strFromU8, unzipSync } from 'fflate';
-import { children, child, xml, matrix, readMesh, safePath } from '../src/core/three-mf-xml';
+import { children, child, xml, matrix, readMesh, safePath } from '../src/vendor/three-mf/compat/three-mf-xml.js';
 // Decode independently through the XML resource graph, including hidden build
 // items. Compare opaque paint against its ordered world-space triangle corners.
 export function paintedFaces(bytes:Uint8Array) {

@@ -4,7 +4,7 @@ import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
 import { exportProject, importProject } from '../src/core/three-mf';
 import { generateBrims } from '../src/core/brim';
 import { DEFAULT_BRIM } from '../src/core/types';
-import { children, child, xml } from '../src/core/three-mf-xml';
+import { children, child, xml } from '../src/vendor/three-mf/compat/three-mf-xml.js';
 import { modelSnapshot } from './painted-fixtures';
 import { nativeFixture } from './native-fixtures';
 import { box, stl } from './fixtures';
@@ -51,7 +51,7 @@ describe('fresh clean 3MF exports', () => {
   it.each(['bambu','orca'] as const)('copies AMS regions without a palette profile or purge table for %s', format => {
     const p = importProject('source.3mf',nativeFixture(format === 'bambu' ? 'BambuStudio' : 'OrcaSlicer'));
     const files = unzipSync(exportProject(p,generateBrims(p,DEFAULT_BRIM),format,{clean:true}));
-    const before = xml(strFromU8(p.source!.files['3D/Objects/shared.model'])), after = xml(strFromU8(files['3D/Objects/shared.model']));
+    const before = xml(strFromU8(unzipSync(new Uint8Array(nativeFixture(format === 'bambu' ? 'BambuStudio' : 'OrcaSlicer')))['3D/Objects/shared.model'])), after = xml(strFromU8(files['3D/Objects/shared.model']));
     const faces = (doc: typeof before) => Array.from(doc.getElementsByTagName('triangle')).map(t => Object.fromEntries(Array.from(t.attributes).filter(a => ['v1','v2','v3','paint_color'].includes(a.name)).map(a => [a.name,a.value])));
     expect(faces(after)).toEqual(faces(before));
     expect(strFromU8(files['3D/Objects/shared.model'])).not.toMatch(/paint_support|paint_seam/);
@@ -77,7 +77,7 @@ describe('fresh clean 3MF exports', () => {
       }
     }
     expect(strFromU8(files[path])).not.toMatch(/hw_config|printer_settings|virtual_extruders|nozzle|bed_shape|preset/);
-    const build = children(child(xml(strFromU8(p.source!.files['3D/3dmodel.model'])).documentElement,'build'),'item');
+    const build = children(child(xml(strFromU8(unzipSync(input)['3D/3dmodel.model'])).documentElement,'build'),'item');
     expect(clean.objects.map((o: {object_settings:{extruder:number}}) => o.object_settings.extruder)).toEqual(build.map(item => original.objects.find((o: {id:number}) => String(o.id) === item.getAttribute('objectid')).object_settings.extruder));
     expect(strFromU8(files[path])).not.toContain('filepath');
     const paintPath = 'Metadata/Slic3r_facets_annotation.json';

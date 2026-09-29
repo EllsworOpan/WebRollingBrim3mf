@@ -130,7 +130,7 @@ Open as a project, then choose your printer, assign materials/colors to the numb
 
 Safe mode can bypass failures in unrelated export metadata, but requires the file to pass the existing geometry import checks. It is not an importer for corrupt geometry or unsupported 3MF structures.
 
-With safe mode on, choosing another output slicer rebuilds the same clean content using that slicer’s geometry, part-role and color-paint structures. MMU/AMS paint trees are translated between Prusa and Bambu encodings, including higher slots, without changing triangle corners or subdivision order. OrcaSlicer 2.4.2 exports require painted region IDs 1–16; higher IDs and unknown or malformed paint encodings are rejected. This check also applies to native Orca exports. Source profiles and plate layout metadata are not converted. Core 3MF material resources, and painted mirrored part transforms when targeting Prusa 2, cannot currently be converted; export reports the limitation instead of silently losing paint.
+With safe mode on, choosing another output slicer rebuilds the same clean content using that slicer’s geometry, part-role and color-paint structures. MMU/AMS paint trees are translated between Prusa and Bambu encodings, including higher slots, without changing triangle corners or subdivision order. OrcaSlicer 2.4.2 exports require painted region IDs 1–16; higher IDs and unknown or malformed paint encodings are rejected. This check also applies to native Orca exports. Source profiles and plate layout metadata are not converted. Painted mirrored part transforms when targeting Prusa 2 cannot currently be converted; export reports the limitation instead of silently losing paint.
 
 ### Bambu Studio and OrcaSlicer
 
@@ -169,7 +169,7 @@ STL, OBJ and unannotated generic 3MF can also export directly to PrusaSlicer 3.0
 - Invalid placements, duplicate resource IDs, incomplete or overlapping part ranges, and unusable bed outlines are rejected before generating brims. First-layer heights are supported from 0.05 to 1 mm; unusable stored heights are reported rather than offered as a preset.
 - The 2D footprint applies negative volumes. The 3D view shows original positive meshes, not a Boolean rendering of negative volumes/modifiers. Painting is preserved in the export but is not displayed in this workbench's preview; inspect it in the slicer.
 - Geometry is quantized to 0.001 mm for polygon operations. The preview is uncompensated mesh geometry, not deposited extrusion. Small slivers can disappear during slicing, and compensation can alter the final separation gap.
-- Up to 200 MB input, 500 MB expanded 3MF data, and two million scene triangles. Repeated instances count toward the scene limit.
+- There is no compressed 3MF upload-size cap. ThreeMFKit expands only needed entries, with default budgets of 1 GiB total, 512 MB per entry, and ten million source triangles including instances. STL/OBJ processing retains its two-million-triangle budget. Browser memory still determines practical capacity.
 
 ## Validation
 
@@ -206,3 +206,9 @@ Browser verification covers sample loading, hole/pocket toggles, 2D/3D previews,
 Released under the [MIT License](LICENSE), copyright © 2026 EllsworOpan, with the original WebRollingBrim attribution retained. The included test plate is original to that project.
 
 Dependencies retain their own licenses. Run `npm run licenses` after dependency updates to refresh the [hosted MIT license](public/LICENSE.txt) and [third-party notices](public/THIRD_PARTY_NOTICES.txt), then commit those files. Deployment runs `npm run licenses -- --check` to ensure the published notices match the locked dependencies and root license. Both are linked from the app footer.
+
+## Shared 3MF API
+
+3MF reading, writing, paint encoding, target capabilities and slicer setting mappings live in the sibling **ThreeMFKit** project. This app consumes its checked-in browser build under `src/vendor/three-mf`; publishing needs no sibling checkout, package server or extra network dependency. App geometry processing stays here. Make format fixes in ThreeMFKit, then run its `npm run build` and `npm run sync -- --verify` to copy and test the same build in all three apps. The script refuses manual vendor edits and defaults to copying only. Use `npm run sync -- --commit --dry-run` to preview an update without writing files or changing Git; `npm run sync -- --commit` copies, verifies all apps and commits only managed API files with a standardized message. It never pushes. For the initial migration, app integration changes outside the vendor folder must also be committed before release.
+
+The API retains source archives for same-format updates, cleanly replaces edited models, and supports cross-format conversion through clean export. Region numbers stay separate even when display colors match. See the library's README and format evidence for the document model and preservation rules.

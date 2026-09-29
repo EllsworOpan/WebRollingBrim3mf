@@ -1,5 +1,5 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from 'fflate';
-import { child, children, serialize, xml, NS } from '../src/core/three-mf-xml';
+import { child, children, serialize, xml, NS } from '../src/vendor/three-mf/compat/three-mf-xml.js';
 import { P3_MODEL, P3_PROJECT, P3_PAINT } from './prusa3-fixtures';
 
 // Build original test geometry around a native alpha12 XL/MMU seed. Always

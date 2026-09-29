@@ -6,6 +6,7 @@ import { generateBrims } from '../src/core/brim';
 import { boundsOf, totalArea } from '../src/core/geometry';
 import { sliceMesh } from '../src/core/mesh';
 import { DEFAULT_BRIM, type Mesh } from '../src/core/types';
+import { DEFAULT_LIMITS } from '../src/vendor/three-mf/index.js';
 import { archive, box, meshXml, project } from './fixtures';
 
 const body = `<object id="1">${meshXml(box())}</object>`;
@@ -59,7 +60,7 @@ describe('3MF data preservation and validation', () => {
 
   it.each(['0', 'false'])('leaves nonprintable build items untouched (%s)', printable => {
     const p = load(body + `<object id="2">${meshXml(box(70,20))}</object>`, `<item objectid="2" printable="${printable}"/>${item}`);
-    expect(p.objects.map(o => o.buildIndex)).toEqual([1]);
+    expect(p.objects.map(o => o.id)).toEqual(['object-1']);
     const files = unzipSync(exportProject(p, generateBrims(p, DEFAULT_BRIM)));
     const items = parse(files['3D/3dmodel.model']).getElementsByTagName('item');
     expect(items[0].getAttribute('objectid')).toBe('2');
@@ -70,9 +71,15 @@ describe('3MF data preservation and validation', () => {
   it.each([
     ['duplicate object IDs', body + body, '<config/>'],
     ['duplicate object configs', body, '<config><object id="1"/><object id="1"/></config>'],
-    ['component settings', body + '<object id="2"><components><component objectid="1"/></components></object>', '<config><object id="1"><metadata key="perimeters" value="4"/></object></config>'],
   ])('rejects ambiguous or unsupported %s', (_, resources, config) => {
     expect(() => load(resources, resources.includes('<components>') ? '<item objectid="2"/>' : item, config)).toThrow(/duplicate|component.*settings/i);
+  });
+
+  it('reads component geometry without interpreting unrelated source settings',()=>{
+    const p=load(body+'<object id="2"><components><component objectid="1"/></components></object>','<item objectid="2"/>','<config><object id="1"><metadata key="perimeters" value="4"/></object></config>');
+    expect(p.objects[0].parts[0].mesh.triangles.length).toBe(box().triangles.length);
+    const clean=unzipSync(exportProject(p,generateBrims(p,DEFAULT_BRIM),undefined,{clean:true}));
+    expect(strFromU8(clean['Metadata/Slic3r_PE_model.config'])).not.toContain('key="perimeters" value="4"');
   });
 
   it.each([
@@ -90,7 +97,7 @@ describe('3MF data preservation and validation', () => {
     const bytes = exportProject(p, result), files = unzipSync(bytes);
     expect(strFromU8(files['Metadata/Slic3r_PE_model.config']).match(/value="Rolling brim"/g)).toHaveLength(1);
     const round = importProject('round.3mf', bytes.slice().buffer);
-    expect(new Set(round.objects.map(o => o.resourceId)).size).toBe(3);
+    expect(new Set(Array.from(parse(files['3D/3dmodel.model']).getElementsByTagName('item')).map(o => o.getAttribute('objectid'))).size).toBe(3);
     expect(round.objects.map(o => boundsOf(sliceMesh(o.parts[0].mesh,0.1)))).toEqual(result.objects.map(o => boundsOf(o.footprint)));
   });
 
@@ -124,22 +131,25 @@ describe('3MF container boundaries', () => {
   it('enforces the expanded archive limit before decompression', () => {
     const bytes = new Uint8Array(archive(body,item)), view = new DataView(bytes.buffer);
     // fflate emits a ZIP without a comment. Set the first central-directory
-    // entry's declared expanded size, without allocating a huge test fixture.
-    const central = view.getUint32(bytes.length-22+16,true);
-    expect(view.getUint32(central,true)).toBe(0x02014b50);
-    view.setUint32(central+24,500_000_001,true);
-    expect(() => importProject('oversized.3mf',bytes.buffer)).toThrow(/expanded.*limit/);
+    // required model's declared size, without allocating a huge test fixture.
+    let central = view.getUint32(bytes.length-22+16,true);
+    while (strFromU8(bytes.subarray(central+46,central+46+view.getUint16(central+28,true))) !== '3D/3dmodel.model') {
+      expect(view.getUint32(central,true)).toBe(0x02014b50);
+      central += 46 + view.getUint16(central+28,true) + view.getUint16(central+30,true) + view.getUint16(central+32,true);
+    }
+    view.setUint32(central+24,DEFAULT_LIMITS.maxEntryBytes + 1,true);
+    expect(() => importProject('oversized.3mf',bytes.buffer)).toThrow(/Expanded.*budget/i);
   });
 
-  it('rejects external components and excessive component nesting', () => {
-    expect(() => load('<object id="1"><components><component objectid="2" path="other.model"/></components></object>')).toThrow(/External/);
+  it('rejects missing external resources and excessive component nesting', () => {
+    expect(() => load('<object id="1"><components><component objectid="2" path="other.model"/></components></object>')).toThrow(/Missing model/);
     const nested = Array.from({length:67},(_,i) => `<object id="${i+1}"><components><component objectid="${i+2}"/></components></object>`).join('');
     expect(() => load(nested)).toThrow(/nesting/);
   });
 
-  it('rejects unsupported units and raft projects, while retaining relative layer heights as an assumption', () => {
+  it('rejects unsupported units but allows unrelated raft settings and relative layer heights', () => {
     expect(() => load(body,item,'<config/>',{},'constructor')).toThrow(/unit/);
-    expect(() => load(body,item,'<config/>',{'Metadata/Slic3r_PE.config':strToU8('; raft_layers = 2\n')})).toThrow(/Raft/);
+    expect(load(body,item,'<config/>',{'Metadata/Slic3r_PE.config':strToU8('; raft_layers = 2\n')}).objects).toHaveLength(1);
     const p = load(body,item,'<config/>',{'Metadata/Slic3r_PE.config':strToU8('; first_layer_height = 150%\n')});
     expect(p.suggestedHeight).toBeUndefined();
   });
